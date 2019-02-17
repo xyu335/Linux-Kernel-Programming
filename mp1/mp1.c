@@ -34,6 +34,9 @@ struct proc_cpu{
 static struct list_head list;
 static int size;
 static struct timer_list tm;
+static struct workqueue_struct * wq;
+
+
 
 /* myread and mywrite callback function */
 /* read function, return the pid and related cpu_usage*/
@@ -144,12 +147,33 @@ static void freell(struct list_head * curr_head)
 		kfree((struct roc_cpu * )  (curr));
 	}
 }
+//TODO delete
+static int helper = 0;
+
+/* workqueue callback */
+static void wq_callback(struct work_struct * work)
+{
+	// update all the linklist node
+	// list
+	printk(KERN_ALERT "work_Queue callback triggered: %d\n ", helper);
+}
+
 
 /* timer callback */
 void tm_callback(unsigned long data)
 {
 	// add work to wq
 	printk(KERN_ALERT "timer callback triggered\n");
+	mod_timer(&tm, jiffies + msecs_to_jiffies(5000));
+	
+	struct work_struct * work = (struct work_struct * ) kmalloc(sizeof(struct work_struct), GFP_KERNEL);
+	// add work to work queue
+	if (work) 
+	{
+		bool ret = queue_work(wq, work);
+		if (ret) printk("queue_work success!%d\n", helper);
+	}
+	
 }
 
 // mp1_init - Called when module is loaded
@@ -176,15 +200,11 @@ int __init mp1_init(void)
    INIT_LIST_HEAD(&list);
 
    // timer init
-   //setup_timer(&tm, tm_callback, 0);
-   init_timer(&tm);
-   tm.function = tm_callback;
-   tm.data = 0;
-   mod_timer(&tm, jiffies + jiffies_to_msecs(5000));
+   setup_timer(&tm, tm_callback, 0);
+   mod_timer(&tm, jiffies +msecs_to_jiffies(5000));
    
-   
-   // handler registration
-
+   // workqueue init
+   wq = create_workqueue("mp1");
 
    printk(KERN_ALERT "MP1 MODULE LOADED\n");
    return 0;   
@@ -201,7 +221,8 @@ void __exit mp1_exit(void)
    printk(KERN_ALERT "Free linked list starting...\n");
    // release the memory of linkedlist
    freell(&list);
-
+   int ret_timer  = del_timer(&tm);
+   if(ret_timer) printk("timer is still in use...\n");
 
    // 1 remove proc entry  
    proc_remove(entry);
