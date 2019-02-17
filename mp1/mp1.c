@@ -45,12 +45,12 @@ static ssize_t myread(struct file * fp,
  
 	printk(KERN_ALERT "READ FROM KERNEL: len: %d\n", len);	
 	struct list_head * i;
-	int index = 0;
+	int shift = 0;
 	// iterate through
-	int buffsize = sizeof(int) * size * 2;
-	// int * kbuf = kmalloc(buffsize, GFP_NOWAIT); /* kbuf for temporary storing all the pid-cputime*/
-	int kbuf[sizeof(int) * size * 2];
-	
+	// int buffsize = sizeof(int) * size * 2;
+	// int kbuf[buffsize];
+	int buffsize = 2048;	
+	char * kbuf =(char *) kmalloc(buffsize, GFP_KERNEL);
 	printk(KERN_DEBUG "Current node size: %d, The buff size is: %d\n", size, buffsize);
 
 	if (!list_empty(&(list.ptr)))
@@ -59,17 +59,18 @@ static ssize_t myread(struct file * fp,
 		list_for_each(i, &list.ptr)
 		{
 			proc_cpu * curr = (proc_cpu *) i;
-			memcpy(&kbuf[index*2], &(curr->pid), sizeof(int));
-			memcpy(&kbuf[index*2 + 1], &(curr->cpu_usage), sizeof(int));	
-			index++;
+			sprintf(kbuf+shift, "%d, %lu ms\n", curr->pid, curr->cpu_usage);
+			shift = strlen(kbuf);
 			// finish the copy of pid and cpu usage
 		}
 
 	};
+	// strlen excluding the null byte
+
 	// copy to user
-	copy_to_user(buff, kbuf, buffsize);
-	
-	return buffsize;
+	copy_to_user(buff, kbuf, shift+1);
+	kfree(kbuf);	
+	return shift+1;
 
 }
 
