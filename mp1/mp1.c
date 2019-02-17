@@ -10,8 +10,9 @@
 #include <linux/string.h> /* use memcpy*/
 #include <linux/slab.h> /*kmalloc*/
 #include <linux/uaccess.h> /* copy_to_user */ 
-
-
+#include <linux/timer.h> /*timer */
+#include <linux/workqueue.h>
+#include <linux/spinlock.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Group_ID");
@@ -25,13 +26,14 @@ static char *entry_name = "status";
 struct proc_cpu{
 	/* store the */
 	struct list_head ptr;
-	int cpu_usage;
+	unsigned long cpu_usage;
 	int pid;
 };
 
 // type correctness
 static struct list_head list;
 static int size;
+static struct timer_list tm;
 
 /* myread and mywrite callback function */
 /* read function, return the pid and related cpu_usage*/
@@ -40,6 +42,13 @@ static ssize_t myread(struct file * fp,
 		size_t len, 
 		loff_t * offset)
 {
+	if(size == 0)
+	{	
+		char * errinfo = "No nodes in the linkedlist :(\n";
+		printk(errinfo);
+		copy_to_user(buff,errinfo, strlen(errinfo) + 1);
+		*offset += (strlen(errinfo) + 1);  
+	}
 	// TODO: modify the linkedlist, register the pid of requesting process
 	if (* offset > 0) return 0;
 	 
@@ -64,20 +73,7 @@ static ssize_t myread(struct file * fp,
 			shift = strlen(kbuf);
 			printk(KERN_DEBUG "output string length, len(kbuf): %d\n", shift);		
 		}		
-
-
-/*		list_for_each(i, &list)
-		{
-			proc_cpu * curr = (proc_cpu *) i;
-			sprintf(kbuf+shift, "%d, %lu ms\n", curr->pid, curr->cpu_usage);
-			shift = strlen(kbuf);
-			printk(KERN_DEBUG "output string length, len(kbuf): %d\n", shift);
-			// finish the copy of pid and cpu usage
-		}
-*/
-	};
-	// strlen excluding the null byte
-
+	}
 	// copy to user
 	copy_to_user(buff, kbuf, shift+1);
 	kfree(kbuf);	
@@ -114,7 +110,7 @@ static ssize_t mywrite(struct file * fp,
 	// insert into the linkedlist 
 	struct proc_cpu * newnode = (struct proc_cpu *) kmalloc(sizeof(struct proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
 	newnode->pid = curr_pid;
-	newnode->cpu_usage = curr_pid;
+	newnode->cpu_usage =(unsigned long) curr_pid;
 	// TODO cpu_time initalization
 	list_add_tail(&(newnode->ptr), &list);
 	
@@ -129,11 +125,8 @@ static ssize_t mywrite(struct file * fp,
 
 static const struct file_operations proc_file_ops = {
 	.owner = THIS_MODULE,
-//	.open = single_open,
 	.read = myread,
 	.write = mywrite
-//	.release = single_release,
-	// all the configuration for a file 
 };
 
 // list the linkedlist iteratively
@@ -149,11 +142,15 @@ static void freell(struct list_head * curr_head)
 		list_del_init(curr);
 		// direct cast the struct start address to struct list 
 		kfree((struct roc_cpu * )  (curr));
-	
 	}
-
 }
 
+/* timer callback */
+void tm_callback(unsigned long data)
+{
+	// add work to wq
+	printk(KERN_ALERT "timer callback triggered\n");
+}
 
 // mp1_init - Called when module is loaded
 int __init mp1_init(void)
@@ -178,6 +175,14 @@ int __init mp1_init(void)
    // linkedlist initializatino 
    INIT_LIST_HEAD(&list);
 
+   // timer init
+   //setup_timer(&tm, tm_callback, 0);
+   init_timer(&tm);
+   tm.function = tm_callback;
+   tm.data = 0;
+   mod_timer(&tm, jiffies + jiffies_to_msecs(5000));
+   
+   
    // handler registration
 
 
