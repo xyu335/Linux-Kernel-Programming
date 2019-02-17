@@ -69,7 +69,7 @@ static ssize_t myread(struct file * fp,
 	// copy to user
 	copy_to_user(buff, kbuf, buffsize);
 	
-	return 0;
+	return buffsize;
 
 }
 
@@ -81,18 +81,27 @@ static ssize_t mywrite(struct file * fp,
 {
 	// lock for the data structure
 	
-	printk(KERN_ALERT "write to kernel: %s\n", (char *) buff); 
-	char kbuf[len];
+	char kbuf[len+1];
+	kbuf[len] = '\x00';
 	copy_from_user(kbuf, buff, len);
 	int curr_pid;
 	// kstrtoint
-	kstrtoint(kbuf, 10, &curr_pid); /* kernel version of atoi()   could return long*/
+	int ret = kstrtoint(kbuf, 10, &curr_pid); /* kernel version of atoi()   could return long*/
+	if (ret)
+	{	int i = 0;
+		while (kbuf[i] != '\0'){
+			printk("ERRSTRTOI %x", *(kbuf+i));
+			i++;
+		}
+		printk(KERN_ERR "error with kstrtoint %D\n", ret);		
+		return ret;
+	} 
 	printk(KERN_DEBUG "The pid of requeted process: %d \n", curr_pid);
 
 	// insert into the linkedlist 
-	// proc_cpu * newnode = (proc_cpu *) kmalloc(sizeof(proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
-	// newnode->pid = (int) curr_pid;
-	// list_add_tail(&(newnode->ptr), &(list.ptr));
+	proc_cpu * newnode = (proc_cpu *) kmalloc(sizeof(proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
+	newnode->pid = (int) curr_pid;
+	list_add_tail(&(newnode->ptr), &(list.ptr));
 	
 	printk(KERN_DEBUG "malloc success for new node \n");
 	// add tail then add size by 1
@@ -121,6 +130,7 @@ static void freell(struct list_head * curr_head)
 	{
 		// ptr of the proc_cpu
 		struct list_head * curr = curr_head->next; 
+		printk(KERN_ALERT "start remove node for pid: %d \n", ((proc_cpu *) curr)->pid);
 		list_del_init(curr);
 		// direct cast the struct start address to struct list 
 		kfree((proc_cpu * )  (curr));
@@ -181,6 +191,7 @@ void __exit mp1_exit(void)
 
    
    printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
+   return;
 }
 
 // Register init and exit funtions
