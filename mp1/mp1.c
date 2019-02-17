@@ -41,6 +41,7 @@ static ssize_t myread(struct file * fp,
 		loff_t * offset)
 {
 	// TODO: modify the linkedlist, register the pid of requesting process
+	printk(KERN_ALERT "READ FROM KERNEL\n");	
 	
 	struct list_head * i;
 	int index = 0;
@@ -48,6 +49,8 @@ static ssize_t myread(struct file * fp,
 	int buffsize = sizeof(int) * size * 2;
 	// int * kbuf = kmalloc(buffsize, GFP_NOWAIT); /* kbuf for temporary storing all the pid-cputime*/
 	int kbuf[sizeof(int) * size * 2];
+	
+	printk(KERN_DEBUG "Current node size: %d, The buff size is: %d\n", size, buffsize);
 
 	if (!list_empty(&(list.ptr)))
 	{
@@ -76,20 +79,23 @@ static ssize_t mywrite(struct file * fp,
 		loff_t * offset)
 {
 	// lock for the data structure
-
-	// TODO: iterate through the Linkedlist and return the corresponding cpu use time
+	
+	printk(KERN_ALERT "write to kernel: %s\n", (char *) buff); 
 	char kbuf[len];
 	copy_from_user(kbuf, buff, len);
 	long curr_pid;
 	kstrtol(kbuf, 0, &curr_pid); /* kernel version of atoi()   could return long*/
-	
+	printk(KERN_DEBUG "The pid of requeted process: %d \n", curr_pid);
+
 	// insert into the linkedlist 
 	proc_cpu * newnode = (proc_cpu *) kmalloc(sizeof(proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
 	newnode->pid = (int) curr_pid;
 	list_add_tail(&(newnode->ptr), &(list.ptr));
 	
+	printk(KERN_DEBUG "malloc success for new node \n");
 	// add tail then add size by 1
 	size++;
+	printk(KERN_DEBUG "write success, node size: %d \n", size);	
 
 	return 0;
 	
@@ -107,6 +113,8 @@ static const struct file_operations proc_file_ops = {
 // list the linkedlist iteratively
 static void freell(struct list_head * curr_head)
 {
+	printk(KERN_ALERT "Free heap starting...");
+
 	while (!list_empty(curr_head))
 	{
 		// ptr of the proc_cpu
@@ -138,7 +146,8 @@ int __init mp1_init(void)
    	printk(KERN_DEBUG "proc entry creation failed");
    	return -ENOMEM;
    }
-   
+
+   printk(KERN_DEBUG "INIT_LIST_HEAD starting...\n");
    // linkedlist initializatino 
    INIT_LIST_HEAD(&(list.ptr));
    list.pid = 0;
@@ -159,9 +168,9 @@ void __exit mp1_exit(void)
    #endif
    // Insert your code here ...
   
+   printk(KERN_ALERT "Free linked list starting...\n");
    // release the memory of linkedlist
    freell(&list.ptr);
-
 
 
    // 1 remove proc entry  
