@@ -41,8 +41,9 @@ static ssize_t myread(struct file * fp,
 		loff_t * offset)
 {
 	// TODO: modify the linkedlist, register the pid of requesting process
-	printk(KERN_ALERT "READ FROM KERNEL\n");	
-	
+	if (* offset > 0) return len;
+ 
+	printk(KERN_ALERT "READ FROM KERNEL: len: %d\n", len);	
 	struct list_head * i;
 	int index = 0;
 	// iterate through
@@ -83,21 +84,22 @@ static ssize_t mywrite(struct file * fp,
 	printk(KERN_ALERT "write to kernel: %s\n", (char *) buff); 
 	char kbuf[len];
 	copy_from_user(kbuf, buff, len);
-	long curr_pid;
-	kstrtol(kbuf, 0, &curr_pid); /* kernel version of atoi()   could return long*/
+	int curr_pid;
+	// kstrtoint
+	kstrtoint(kbuf, 10, &curr_pid); /* kernel version of atoi()   could return long*/
 	printk(KERN_DEBUG "The pid of requeted process: %d \n", curr_pid);
 
 	// insert into the linkedlist 
-	proc_cpu * newnode = (proc_cpu *) kmalloc(sizeof(proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
-	newnode->pid = (int) curr_pid;
-	list_add_tail(&(newnode->ptr), &(list.ptr));
+	// proc_cpu * newnode = (proc_cpu *) kmalloc(sizeof(proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
+	// newnode->pid = (int) curr_pid;
+	// list_add_tail(&(newnode->ptr), &(list.ptr));
 	
 	printk(KERN_DEBUG "malloc success for new node \n");
 	// add tail then add size by 1
 	size++;
 	printk(KERN_DEBUG "write success, node size: %d \n", size);	
 
-	return 0;
+	return len;
 	
 }
 
