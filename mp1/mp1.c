@@ -22,15 +22,15 @@ MODULE_DESCRIPTION("CS-423 MP1");
 struct proc_dir_entry *entry; /* mp1/status */
 static char *entry_name = "status";
 
-typedef struct{
+struct proc_cpu{
 	/* store the */
 	struct list_head ptr;
 	int cpu_usage;
 	int pid;
-}proc_cpu;
+};
 
 // type correctness
-proc_cpu list;
+static struct list_head list;
 static int size;
 
 /* myread and mywrite callback function */
@@ -41,10 +41,11 @@ static ssize_t myread(struct file * fp,
 		loff_t * offset)
 {
 	// TODO: modify the linkedlist, register the pid of requesting process
-	if (* offset > 0) return len;
- 
-	printk(KERN_ALERT "READ FROM KERNEL: len: %d\n", len);	
+	if (* offset > 0) return 0;
+	 
+	printk(KERN_ALERT "READ FROM KERNEL, offset is: %d\n", *offset);	
 	struct list_head * i;
+	struct proc_cpu * j;
 	int shift = 0;
 	// iterate through
 	// int buffsize = sizeof(int) * size * 2;
@@ -53,23 +54,34 @@ static ssize_t myread(struct file * fp,
 	char * kbuf =(char *) kmalloc(buffsize, GFP_KERNEL);
 	printk(KERN_DEBUG "Current node size: %d, The buff size is: %d\n", size, buffsize);
 
-	if (!list_empty(&(list.ptr)))
+	if (!list_empty(&list))
 	{
+		printk(KERN_ALERT "list is not empty\n");
 		// lockhere? 
-		list_for_each(i, &list.ptr)
+		list_for_each_entry(j, &list, ptr)
+		{
+			sprintf(kbuf+shift, "%d, %lu ms \n", j->pid, j->cpu_usage);
+			shift = strlen(kbuf);
+			printk(KERN_DEBUG "output string length, len(kbuf): %d\n", shift);		
+		}		
+
+
+/*		list_for_each(i, &list)
 		{
 			proc_cpu * curr = (proc_cpu *) i;
 			sprintf(kbuf+shift, "%d, %lu ms\n", curr->pid, curr->cpu_usage);
 			shift = strlen(kbuf);
+			printk(KERN_DEBUG "output string length, len(kbuf): %d\n", shift);
 			// finish the copy of pid and cpu usage
 		}
-
+*/
 	};
 	// strlen excluding the null byte
 
 	// copy to user
 	copy_to_user(buff, kbuf, shift+1);
 	kfree(kbuf);	
+	*offset += shift;
 	return shift+1;
 
 }
@@ -100,9 +112,11 @@ static ssize_t mywrite(struct file * fp,
 	printk(KERN_DEBUG "The pid of requeted process: %d \n", curr_pid);
 
 	// insert into the linkedlist 
-	proc_cpu * newnode = (proc_cpu *) kmalloc(sizeof(proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
-	newnode->pid = (int) curr_pid;
-	list_add_tail(&(newnode->ptr), &(list.ptr));
+	struct proc_cpu * newnode = (struct proc_cpu *) kmalloc(sizeof(struct proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
+	newnode->pid = curr_pid;
+	newnode->cpu_usage = curr_pid;
+	// TODO cpu_time initalization
+	list_add_tail(&(newnode->ptr), &list);
 	
 	printk(KERN_DEBUG "malloc success for new node \n");
 	// add tail then add size by 1
@@ -131,10 +145,10 @@ static void freell(struct list_head * curr_head)
 	{
 		// ptr of the proc_cpu
 		struct list_head * curr = curr_head->next; 
-		printk(KERN_ALERT "start remove node for pid: %d \n", ((proc_cpu *) curr)->pid);
+		printk(KERN_ALERT "start remove node for pid: %d \n", ((struct proc_cpu *) curr)->pid);
 		list_del_init(curr);
 		// direct cast the struct start address to struct list 
-		kfree((proc_cpu * )  (curr));
+		kfree((struct roc_cpu * )  (curr));
 	
 	}
 
@@ -162,9 +176,7 @@ int __init mp1_init(void)
 
    printk(KERN_DEBUG "INIT_LIST_HEAD starting...\n");
    // linkedlist initializatino 
-   INIT_LIST_HEAD(&(list.ptr));
-   list.pid = 0;
-   list.cpu_usage = 0;
+   INIT_LIST_HEAD(&list);
 
    // handler registration
 
@@ -183,7 +195,7 @@ void __exit mp1_exit(void)
   
    printk(KERN_ALERT "Free linked list starting...\n");
    // release the memory of linkedlist
-   freell(&list.ptr);
+   freell(&list);
 
 
    // 1 remove proc entry  
