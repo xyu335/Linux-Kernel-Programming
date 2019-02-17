@@ -8,6 +8,10 @@
 #include <linux/fs.h>
 #include <linux/list.h> /*klist datastructure */
 #include <linux/string.h> /* use memcpy*/
+#include <linux/slab.h> /*kmalloc*/
+#include <linux/uaccess.h> /* copy_to_user */ 
+
+
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Group_ID");
@@ -25,16 +29,9 @@ typedef struct{
 	int pid;
 }proc_cpu;
 
-struct proc_cpu list;
+// type correctness
+proc_cpu list;
 static int size;
-static const struct file_operations proc_file_ops = {
-	.owner = THIS_MODULE,
-//	.open = single_open,
-	.read = myread,
-	.write = mywrite
-//	.release = single_release,
-	// all the configuration for a file 
-};
 
 /* myread and mywrite callback function */
 /* read function, return the pid and related cpu_usage*/
@@ -46,20 +43,21 @@ static ssize_t myread(struct file * fp,
 	// TODO: modify the linkedlist, register the pid of requesting process
 	
 	struct list_head * i;
+	int index = 0;
 	// iterate through
 	int buffsize = sizeof(int) * size * 2;
-	int * kbuf = kmalloc(buffsize, GFP_NOWAIT); /* kbuf for temporary storing all the pid-cputime*/
+	// int * kbuf = kmalloc(buffsize, GFP_NOWAIT); /* kbuf for temporary storing all the pid-cputime*/
+	int kbuf[sizeof(int) * size * 2];
 
-	if (!list_empty(list.ptr))
+	if (!list_empty(&(list.ptr)))
 	{
 		// lockhere? 
-		foreach(i, &list.ptr)
+		list_for_each(i, &list.ptr)
 		{
-			struct proc_cpu * curr = (struct proc_cpu *) i;
-			memcpy(kbuf, &(curr->pid), sizeof(int));
-			kbuf++;
-			memcpy(kbuf, &(curr->cpu_usage), sizeof(int));	
-			kbuf++;
+			proc_cpu * curr = (proc_cpu *) i;
+			memcpy(&kbuf[index*2], &(curr->pid), sizeof(int));
+			memcpy(&kbuf[index*2 + 1], &(curr->cpu_usage), sizeof(int));	
+			index++;
 			// finish the copy of pid and cpu usage
 		}
 
@@ -82,13 +80,13 @@ static ssize_t mywrite(struct file * fp,
 	// TODO: iterate through the Linkedlist and return the corresponding cpu use time
 	char kbuf[len];
 	copy_from_user(kbuf, buff, len);
-	int pid = atoi(kbuf);
+	long curr_pid;
+	kstrtol(kbuf, 0, &curr_pid); /* kernel version of atoi()   could return long*/
 	
 	// insert into the linkedlist 
-	
-	struct proc_cpu * newnode = new kmalloc(sizeof(struct proc_cpu), GPF_NOWAIT); /*GFP: get free pages*/
-	
-	list_add_tail(newnode->ptr, list.ptr);
+	proc_cpu * newnode = (proc_cpu *) kmalloc(sizeof(proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
+	newnode->pid = (int) curr_pid;
+	list_add_tail(&(newnode->ptr), &(list.ptr));
 	
 	// add tail then add size by 1
 	size++;
@@ -97,16 +95,25 @@ static ssize_t mywrite(struct file * fp,
 	
 }
 
+static const struct file_operations proc_file_ops = {
+	.owner = THIS_MODULE,
+//	.open = single_open,
+	.read = myread,
+	.write = mywrite
+//	.release = single_release,
+	// all the configuration for a file 
+};
+
 // list the linkedlist iteratively
 static void freell(struct list_head * curr_head)
 {
-	while (!list_empty())
+	while (!list_empty(curr_head))
 	{
 		// ptr of the proc_cpu
 		struct list_head * curr = curr_head->next; 
 		list_del_init(curr);
 		// direct cast the struct start address to struct list 
-		free((struct proc_cpu * )  (*curr));
+		kfree((proc_cpu * )  (curr));
 	
 	}
 
@@ -133,7 +140,7 @@ int __init mp1_init(void)
    }
    
    // linkedlist initializatino 
-   LIST_HEAD_INIT(&list.ptr);
+   INIT_LIST_HEAD(&(list.ptr));
    list.pid = 0;
    list.cpu_usage = 0;
 
@@ -153,7 +160,7 @@ void __exit mp1_exit(void)
    // Insert your code here ...
   
    // release the memory of linkedlist
-   freell(list.ptr);
+   freell(&list.ptr);
 
 
 
