@@ -20,9 +20,6 @@ MODULE_DESCRIPTION("CS-423 MP1");
 
 #define DEBUG 1
 
-struct proc_dir_entry *entry; /* mp1/status */
-static char *entry_name = "status";
-
 struct proc_cpu{
 	/* store the */
 	struct list_head ptr;
@@ -30,14 +27,16 @@ struct proc_cpu{
 	int pid;
 };
 
-// type correctness
+/* global var*/
+struct proc_dir_entry *entry; /* mp1/status */
+static char *entry_name = "status";
 static struct list_head list;
 static int size;
 static struct timer_list tm;
 static struct workqueue_struct * wq;
 struct work_struct work;
-
 spinlock_t lock;
+
 /* myread and mywrite callback function */
 /* read function, return the pid and related cpu_usage*/
 static ssize_t myread(struct file * fp, 
@@ -47,37 +46,38 @@ static ssize_t myread(struct file * fp,
 {
 	if(size == 0)
 	{	
-		char * errinfo = "No nodes in the linkedlist :(\n";
+		char * errinfo = "No PID is regiested :(\n";
 		printk(errinfo);
 		copy_to_user(buff,errinfo, strlen(errinfo) + 1);
 		*offset += (strlen(errinfo) + 1);  
 	}
 	if (* offset > 0) return 0;
 	 
-	printk(KERN_ALERT "READ FROM KERNEL, offset is: %d\n", *offset);	
+	printk(KERN_ALERT "READ FROM KERNEL, offset is: %d \n", *offset);	
 	struct proc_cpu * j;
 	int shift = 0;
 	int buffsize = 2048;	
 	char * kbuf =(char *) kmalloc(buffsize, GFP_KERNEL);
-	printk(KERN_DEBUG "Current node size: %d, The buff size is: %d\n", size, buffsize);
+	printk(KERN_DEBUG "Reg node size: %d, \n",size);
 	
 	spin_lock(&lock);
 	if (!list_empty(&list))
 	{
-		printk(KERN_ALERT "list is not empty\n");
+		printk(KERN_ALERT "started iterating \n");
 		// lockhere? 
 		list_for_each_entry(j, &list, ptr)
 		{
 			sprintf(kbuf+shift, "%d, %lu ms \n", j->pid, j->cpu_usage);
 			shift = strlen(kbuf);
-			printk(KERN_DEBUG "output string length, len(kbuf): %d\n", shift);		
+			printk(KERN_DEBUG "len(kbuf): %d \n", shift);		
 		}		
 	}
-	spin_unlock(&lock);
 	// copy to user
-	copy_to_user(buff, kbuf, shift+1);
-	kfree(kbuf);	
+	int copied = copy_to_user(buff, kbuf, shift+1);
+	printk(KERN_DEBUG "%d bytes copied\n", copied);
+	kfree(kbuf);
 	*offset += shift;
+	spin_unlock(&lock);
 	return shift+1;
 
 }
@@ -88,25 +88,22 @@ static ssize_t mywrite(struct file * fp,
 		size_t len, 
 		loff_t * offset)
 {
-	// lock for the data structure
-	
 	char kbuf[len+1];
 	kbuf[len] = '\x00';
 	copy_from_user(kbuf, buff, len);
 	int curr_pid;
 	// kstrtoint
-	int ret = kstrtoint(kbuf, 10, &curr_pid); /* kernel version of atoi()   could return long*/
+	int ret = kstrtoint(kbuf, 10, &curr_pid); 
 	if (ret)
 	{	int i = 0;
 		while (kbuf[i] != '\0'){
 			printk("ERRSTRTOI %x", *(kbuf+i));
 			i++;
 		}
-		printk(KERN_ERR "error with kstrtoint %D\n", ret);		
+		printk(KERN_ERR "error with parse%d\n",ret);
 		return ret;
 	} 
-	printk(KERN_DEBUG "The pid of requeted process: %d \n", curr_pid);
-
+	printk(KERN_DEBUG "PID:%d is registering\n", curr_pid);
 	// insert into the linkedlist 
 	struct proc_cpu * newnode = (struct proc_cpu *) kmalloc(sizeof(struct proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
 	newnode->pid = curr_pid;
@@ -116,9 +113,8 @@ static ssize_t mywrite(struct file * fp,
 	list_add_tail(&(newnode->ptr), &list);
 	size++;
 	spin_unlock(&lock);
-	printk(KERN_DEBUG "write success, node size: %d \n", size);	
+	printk(KERN_DEBUG "Registered, node size:%d \n", size);	
 	return len;
-	
 }
 
 static const struct file_operations proc_file_ops = {
@@ -126,11 +122,10 @@ static const struct file_operations proc_file_ops = {
 	.read = myread,
 	.write = mywrite
 };
-
-// list the linkedlist iteratively
+/* free linkedlist iterately */
 static void freell(struct list_head * curr_head)
 {
-	printk(KERN_ALERT "Free heap starting...");
+	printk(KERN_ALERT "Free heap starting...\n");
 
 	while (!list_empty(curr_head))
 	{
@@ -141,12 +136,13 @@ static void freell(struct list_head * curr_head)
 		// direct cast the struct start address to struct list 
 		kfree((struct roc_cpu * )  (curr));
 	}
+	printk(KERN_ALERT "All memory freed..\n");
 }
 
 /* workqueue callback */
 void wq_callback(struct work_struct * work)
 {
-	// update all the linklist node
+	printk(KERN_ALERT "wq call back started\n");
 	struct proc_cpu * curr;
 	struct proc_cpu * tmp;
 	// critical section begins
@@ -154,7 +150,7 @@ void wq_callback(struct work_struct * work)
 	if (list_empty(&list)) printk(KERN_ALERT "wqcallback, list is empty now. \n");
 	list_for_each_entry_safe(curr, tmp, &list, ptr)
 	{	
-		printk("reach here pid&cpu: %d, %lu\n", curr->pid, curr->cpu_usage);
+		// printk("reach here pid&cpu: %d, %lu\n", curr->pid, curr->cpu_usage);
 		if (!get_cpu_use(curr->pid, &curr->cpu_usage)) printk(KERN_ALERT "get cpu_time for %d: %lu\n", curr->pid, curr->cpu_usage);
 		else
 		{
@@ -166,7 +162,7 @@ void wq_callback(struct work_struct * work)
 	}
 	spin_unlock(&lock);
 	// critical section ends
-	printk(KERN_ALERT "work_Queue callback triggered\n ");
+	printk(KERN_ALERT "wq callback finished\n ");
 	
 	// free the task instance
 	kfree(work);
@@ -186,7 +182,8 @@ void tm_callback(unsigned long data)
 	{
 		INIT_WORK(work, wq_callback);
 		if (queue_work(wq, work)) printk("queue_work success!\n");
-	}
+	}else printk(KERN_ALERT "kmalloc for new work failed");
+	
 	printk(KERN_DEBUG "timer callback finished\n");
 	
 }
@@ -211,7 +208,6 @@ int __init mp1_init(void)
    	return -ENOMEM;
    }
 
-   printk(KERN_DEBUG "INIT_LIST_HEAD starting...\n");
    // linkedlist initializatino 
    INIT_LIST_HEAD(&list);
 
@@ -221,6 +217,7 @@ int __init mp1_init(void)
    
    // workqueue init
    wq = create_workqueue("mp1");
+   
    printk(KERN_ALERT "MP1 MODULE LOADED\n");
    return 0;   
 }
@@ -231,18 +228,23 @@ void __exit mp1_exit(void)
    #ifdef DEBUG
    printk(KERN_ALERT "MP1 MODULE UNLOADING\n");
    #endif
-   // release the memory of linkedlist
-   int ret_timer  = del_timer(&tm);
-   if(ret_timer) printk("timer is still in use...\n");
 
+   // release the memory of linkedlist
+   int ret = del_timer_sync(&tm);
+   
+   spin_lock(&lock);
+   
    // 1 remove proc entry  
    proc_remove(entry);
-   
+   printk(KERN_ALERT "Directory entry removed..\n");
    // timer workqueue delete
-   flush_workqueue(&wq);
-   destroy_workqueue(&wq);
+   destroy_workqueue(wq);
+   printk(KERN_ALERT "Workqueue destroied..\n");
+   
    // TODO spinlock release
    freell(&list);
+   spin_unlock(&lock);
+   printk(KERN_ALERT "Lock released...\n");
    printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
    return;
 }
