@@ -35,9 +35,9 @@ static struct list_head list;
 static int size;
 static struct timer_list tm;
 static struct workqueue_struct * wq;
+struct work_struct work;
 
-
-
+spinlock_t lock;
 /* myread and mywrite callback function */
 /* read function, return the pid and related cpu_usage*/
 static ssize_t myread(struct file * fp, 
@@ -52,20 +52,16 @@ static ssize_t myread(struct file * fp,
 		copy_to_user(buff,errinfo, strlen(errinfo) + 1);
 		*offset += (strlen(errinfo) + 1);  
 	}
-	// TODO: modify the linkedlist, register the pid of requesting process
 	if (* offset > 0) return 0;
 	 
 	printk(KERN_ALERT "READ FROM KERNEL, offset is: %d\n", *offset);	
-	struct list_head * i;
 	struct proc_cpu * j;
 	int shift = 0;
-	// iterate through
-	// int buffsize = sizeof(int) * size * 2;
-	// int kbuf[buffsize];
 	int buffsize = 2048;	
 	char * kbuf =(char *) kmalloc(buffsize, GFP_KERNEL);
 	printk(KERN_DEBUG "Current node size: %d, The buff size is: %d\n", size, buffsize);
-
+	
+	spin_lock(&lock);
 	if (!list_empty(&list))
 	{
 		printk(KERN_ALERT "list is not empty\n");
@@ -77,6 +73,7 @@ static ssize_t myread(struct file * fp,
 			printk(KERN_DEBUG "output string length, len(kbuf): %d\n", shift);		
 		}		
 	}
+	spin_unlock(&lock);
 	// copy to user
 	copy_to_user(buff, kbuf, shift+1);
 	kfree(kbuf);	
@@ -113,15 +110,13 @@ static ssize_t mywrite(struct file * fp,
 	// insert into the linkedlist 
 	struct proc_cpu * newnode = (struct proc_cpu *) kmalloc(sizeof(struct proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
 	newnode->pid = curr_pid;
-	newnode->cpu_usage =(unsigned long) curr_pid;
-	// TODO cpu_time initalization
-	list_add_tail(&(newnode->ptr), &list);
+	newnode->cpu_usage = 0;
 	
-	printk(KERN_DEBUG "malloc success for new node \n");
-	// add tail then add size by 1
+	spin_lock(&lock);
+	list_add_tail(&(newnode->ptr), &list);
 	size++;
+	spin_unlock(&lock);
 	printk(KERN_DEBUG "write success, node size: %d \n", size);	
-
 	return len;
 	
 }
@@ -147,17 +142,36 @@ static void freell(struct list_head * curr_head)
 		kfree((struct roc_cpu * )  (curr));
 	}
 }
-//TODO delete
-static int helper = 0;
 
 /* workqueue callback */
-static void wq_callback(struct work_struct * work)
+void wq_callback(struct work_struct * work)
 {
 	// update all the linklist node
-	// list
-	printk(KERN_ALERT "work_Queue callback triggered: %d\n ", helper);
+	struct proc_cpu * curr;
+	struct proc_cpu * tmp;
+	// critical section begins
+	spin_lock(&lock);
+	if (list_empty(&list)) printk(KERN_ALERT "wqcallback, list is empty now. \n");
+	list_for_each_entry_safe(curr, tmp, &list, ptr)
+	{	
+		printk("reach here pid&cpu: %d, %lu\n", curr->pid, curr->cpu_usage);
+		if (!get_cpu_use(curr->pid, &curr->cpu_usage)) printk(KERN_ALERT "get cpu_time for %d: %lu\n", curr->pid, curr->cpu_usage);
+		else
+		{
+		// remove the node form the node from the list
+		list_del(curr);
+		kfree(curr);
+		size--;
+		}
+	}
+	spin_unlock(&lock);
+	// critical section ends
+	printk(KERN_ALERT "work_Queue callback triggered\n ");
+	
+	// free the task instance
+	kfree(work);
+	return;
 }
-
 
 /* timer callback */
 void tm_callback(unsigned long data)
@@ -170,9 +184,10 @@ void tm_callback(unsigned long data)
 	// add work to work queue
 	if (work) 
 	{
-		bool ret = queue_work(wq, work);
-		if (ret) printk("queue_work success!%d\n", helper);
+		INIT_WORK(work, wq_callback);
+		if (queue_work(wq, work)) printk("queue_work success!\n");
 	}
+	printk(KERN_DEBUG "timer callback finished\n");
 	
 }
 
@@ -184,6 +199,7 @@ int __init mp1_init(void)
    #endif
    // Insert your code here ...
    size = 0;
+   spin_lock_init(&lock);
 
    // create proc file system    
    entry = proc_mkdir("mp1", NULL);
@@ -205,7 +221,6 @@ int __init mp1_init(void)
    
    // workqueue init
    wq = create_workqueue("mp1");
-
    printk(KERN_ALERT "MP1 MODULE LOADED\n");
    return 0;   
 }
@@ -216,19 +231,18 @@ void __exit mp1_exit(void)
    #ifdef DEBUG
    printk(KERN_ALERT "MP1 MODULE UNLOADING\n");
    #endif
-   // Insert your code here ...
-  
-   printk(KERN_ALERT "Free linked list starting...\n");
    // release the memory of linkedlist
-   freell(&list);
    int ret_timer  = del_timer(&tm);
    if(ret_timer) printk("timer is still in use...\n");
 
    // 1 remove proc entry  
    proc_remove(entry);
    
-
-   
+   // timer workqueue delete
+   flush_workqueue(&wq);
+   destroy_workqueue(&wq);
+   // TODO spinlock release
+   freell(&list);
    printk(KERN_ALERT "MP1 MODULE UNLOADED\n");
    return;
 }
