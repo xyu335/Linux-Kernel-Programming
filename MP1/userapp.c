@@ -7,18 +7,6 @@
 
 char * filename;
 
-int main_1(int argc, char * argv[])
-{
-	// test
-	// filename = "tmpfile";
-	filename = argv[1];
-	char buf[2048];
-	FILE * fp = fopen(filename, "r");
-	int readBytes = fread(buf, 2048, 1, fp);
-	printf("string got: %s \n", buf);
-	
-}
-
 int main(int argc, char* argv[])
 {
 
@@ -73,12 +61,14 @@ void workfunc(int times)
 	}
 }
 
+/* use exec to print the output from /proc/mp1/status*/
 void kernel_cat()
 {
 	printf("start read the proc/mp1/status\n");
 	execlp("cat", "cat", "/proc/mp1/status", (char*)NULL);
 }
 
+/* use fread and printf to print the output */
 void kernel_syscall(FILE * fp)
 {
 	/* read from the proc */

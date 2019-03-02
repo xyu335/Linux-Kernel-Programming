@@ -67,7 +67,8 @@ static ssize_t myread(struct file * fp,
 		// lockhere? 
 		list_for_each_entry(j, &list, ptr)
 		{
-			sprintf(kbuf+shift, "%d, %lu ms \n", j->pid, j->cpu_usage);
+			// output format
+			sprintf(kbuf+shift, "PID%d: %lu ms \n", j->pid, j->cpu_usage);
 			shift = strlen(kbuf);
 			printk(KERN_DEBUG "len(kbuf): %d \n", shift);		
 		}		
@@ -103,7 +104,7 @@ static ssize_t mywrite(struct file * fp,
 		printk(KERN_ERR "error with parse%d\n",ret);
 		return ret;
 	} 
-	printk(KERN_DEBUG "PID:%d is registering\n", curr_pid);
+	printk(KERN_DEBUG "PID%d: is registering\n", curr_pid);
 	// insert into the linkedlist 
 	struct proc_cpu * newnode = (struct proc_cpu *) kmalloc(sizeof(struct proc_cpu), GFP_NOWAIT); /*GFP: get free pages*/
 	newnode->pid = curr_pid;
@@ -150,8 +151,12 @@ void wq_callback(struct work_struct * work)
 	if (list_empty(&list)) printk(KERN_ALERT "wqcallback, list is empty now. \n");
 	list_for_each_entry_safe(curr, tmp, &list, ptr)
 	{	
-		// printk("reach here pid&cpu: %d, %lu\n", curr->pid, curr->cpu_usage);
-		if (!get_cpu_use(curr->pid, &curr->cpu_usage)) printk(KERN_ALERT "get cpu_time for %d: %lu\n", curr->pid, curr->cpu_usage);
+		// update the cpu time using given function
+		if (!get_cpu_use(curr->pid, &curr->cpu_usage))
+		{
+			// printk("reach here pid&cpu: %d, %lu\n", curr->pid, curr->cpu_usage);
+			printk(KERN_ALERT "get cpu_time for %d: %lu\n", curr->pid, curr->cpu_usage);
+		}
 		else
 		{
 		// remove the node form the node from the list

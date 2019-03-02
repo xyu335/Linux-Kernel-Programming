@@ -9,7 +9,8 @@ RM:=rm
 
 all: clean modules app
 
-obj-m:= mp1.o
+obj-m += xy21_MP1.o
+xy21_MP1-y:=mp1.o
 
 modules:
 	$(MAKE) -C $(KERNEL_SRC) M=$(SUBDIR) modules
