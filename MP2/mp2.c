@@ -43,16 +43,36 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 	return shift+1;
 }
 
+int reg_entry(void){
+	;
+}
+int yield_entry(void){
+	;
+}
+int dereg_entry(void){
+	;
+}
 /* write callback, handling the request for register my p_task to the kernel */
 static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t len, loff_t * offset)
-{
-	char buff[256];
-	buff[255] = 0;
-	int copied = copy_from_user(buff, userbuff, len);
-
+{	
 	printk(KERN_DEBUG "[Write Callback] triggered");
+	char buff[len+1];
+	buff[len] = 0;
+	int copied = copy_from_user(buff, userbuff, len);
+	switch (buff[0]){
+		case 'R':
+			reg_entry();
+		case 'Y':
+			yield_entry();
+		case 'D':
+			dereg_entry();
+		default:
+			printk(KERN_ALERT "The operation is not supported. Please choose either R, Y, D for input...\n");
+	}
+	printk(KERN_DEBUG "The input is %s \n", buff);
 	return len;
 }
+
 
 static const struct file_operations f_ops = {
 	.owner = THIS_MODULE,
