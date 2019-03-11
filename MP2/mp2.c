@@ -76,6 +76,16 @@ void tm_callback(unsigned long data)
 	return;
 }
 
+/* free signle mp2_struct node */
+int freeone(struct mp2_task_struct * itr)
+{
+	del_timer_sync(&itr->tm);
+	list_del(&itr->node);
+	kmem_cache_free(mycache, itr);
+	// what to deal with task_struct itself? 
+	return 0;
+}
+
 /* entry for write callback function to register the periodic program */ 
 int reg_entry(int pid, int period, int computation){
 	printk(KERN_DEBUG "Register section enterd... params: %d, %d, %d\n", pid, period, computation);
@@ -87,11 +97,10 @@ int reg_entry(int pid, int period, int computation){
 	tsk->computation = computation;
 	tsk->tsk = find_task_by_pid(pid);
 	tsk->state = SLEEPING; //Firstly add the pid to the list, the state is default to be sleeping, so the thread will be wait for at least one time round to be invoked		
-	#ifndef DEBUG
 	setup_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // args
 	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(period));
-	#else 
-	printk(KERN_DEBUG "PID % is registering...");
+	#ifdef DEBUG
+	printk(KERN_DEBUG "PID % is finishing register; period %d; computation %d.", tsk->pid, tsk->period, tsk->computation);
 	#endif 	
 	return 0;
 }
@@ -105,6 +114,13 @@ int yield_entry(int pid){
 /* deregister the process from the list of task_struct */
 int dereg_entry(int pid){
 	printk(KERN_DEBUG "De-register section enterd... params: %d\n", pid);
+	struct task_struct * tsk = find_task_by_pid(pid);
+	if (!tsk) 
+	{	printk(KERN_DEBUG "No task struct found with this pid: %d ...", pid);
+		return 1;
+	}
+	struct mp2_task_struct * mp2_tsk = (struct mp2_task_struct *) tsk;
+	if (freeone(mp2_tsk)) return 1;
 	return 0;
 }
 
@@ -233,6 +249,7 @@ static void init_mykernel(void)
 
 static void init_slab(void)
 {
+	printk(KERN_DEBUG "Slab allocator initializing... ");
 	char * cache_name = "slab";
 	int size = sizeof(struct mp2_task_struct);
 	mycache = kmem_cache_create(cache_name, size, 0,  SLAB_HWCACHE_ALIGN, NULL); // construction and decons
@@ -256,7 +273,8 @@ int __init mp2_init(void)
 		proc_remove(dir);
 		return -ENOMEM;
 	}
-
+	
+	printk(KERN_DEBUG "Start init list, slab, kernel thread...");
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
 	#ifndef DEBUG
@@ -276,11 +294,8 @@ int freeall(void)
 	{
 		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
-			// delete list_head, timer_list
-			// task_struct
-			del_timer_sync(&itr->tm);
-			list_del(&itr->node);
-			kmem_cache_free(mycache, itr);
+			// delete list_head, timer_list, task_struct
+			freeone(itr);
 		}
 	}
 	
