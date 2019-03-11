@@ -79,9 +79,14 @@ void tm_callback(unsigned long data)
 /* free signle mp2_struct node */
 int freeone(struct mp2_task_struct * itr)
 {
+	#ifdef DEBUG
+	printk(KERN_DEBUG "Starting freeone for pid: %d ...", itr->pid);
+	#endif
+	#ifndef DEBUG
 	del_timer_sync(&itr->tm);
 	list_del(&itr->node);
 	kmem_cache_free(mycache, itr);
+	#endif
 	// what to deal with task_struct itself? 
 	return 0;
 }
@@ -120,7 +125,7 @@ int dereg_entry(int pid){
 		return 1;
 	}
 	struct mp2_task_struct * mp2_tsk = (struct mp2_task_struct *) tsk;
-	if (freeone(mp2_tsk)) return 1;
+	freeone(mp2_tsk);
 	return 0;
 }
 
@@ -215,7 +220,8 @@ static int dispatch_fn(void)
 		struct mp2_task_struct * tmp;
 		struct mp2_task_struct * itr;
 		if (!curr_tsk) min_period = curr_tsk->period;
-		next = curr_tsk;
+		next = NULL;
+		// DEFAULT SHOULD BE NULL
 		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
 			if (itr->state == READY && itr->period < min_period) 
@@ -226,8 +232,8 @@ static int dispatch_fn(void)
 		}
 		if (curr_tsk && curr_tsk != next) set_old_task(curr_tsk); 
 		if (next != NULL) set_new_task(next);
-		// set kernel thread itself to sleep, UNINTERRUPTIBLE
-		set_current_state(TASK_UNINTERRUPTIBLE);
+		// set kernel thread itself to sleep, INTERRUPTIBLE
+		set_current_state(TASK_INTERRUPTIBLE); 
 		schedule();
 	};
 	
