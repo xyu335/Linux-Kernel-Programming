@@ -5,3 +5,6 @@
 *.symvers
 ./tmp_versions/
 ./tmp_versions/*
+*.mod.c
+userapp
+

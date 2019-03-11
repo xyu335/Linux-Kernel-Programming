@@ -66,9 +66,14 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 void tm_callback(unsigned long data)
 {
 	struct mp2_task_struct * tsk = (struct mp2_task_struct *) data;
+	#ifdef DEBUG
+	printk(KERN_ALERT "Timer triggered for pid:%d ...", tsk->pid);
+	#else
 	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(tsk->period)); //TODO precision
 	if (tsk->state == SLEEPING) tsk->state = READY;	
 	wake_up_process(dispatch_kth);
+	#endif
+	return;
 }
 
 /* entry for write callback function to register the periodic program */ 
@@ -80,10 +85,14 @@ int reg_entry(int pid, int period, int computation){
 	tsk->pid = pid; 
 	tsk->period = period; 
 	tsk->computation = computation;
+	tsk->tsk = find_task_by_pid(pid);
+	tsk->state = SLEEPING; //Firstly add the pid to the list, the state is default to be sleeping, so the thread will be wait for at least one time round to be invoked		
+	#ifndef DEBUG
 	setup_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // args
 	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(period));
-	tsk->tsk = find_task_by_pid(pid);
-	tsk->state = SLEEPING; //TODO firstly add the pid to the list, the state is default to be sleeping, so the thread will be wait for at least one time round to be invoked		
+	#else 
+	printk(KERN_DEBUG "PID % is registering...");
+	#endif 	
 	return 0;
 }
 
@@ -172,6 +181,7 @@ static void set_old_task(struct mp2_task_struct *tsk)
 {
 	struct sched_param sparam;
 	sparam.sched_priority = 0;
+	if (tsk->state == RUNNING) tsk->state = READY; // if current state is SLEEPING, then we should not make it ready now
 	sched_setscheduler(tsk->tsk, SCHED_NORMAL, &sparam);
 	return;
 }
@@ -179,6 +189,7 @@ static void set_old_task(struct mp2_task_struct *tsk)
 /* dispatch thread, schedule new process and save the old process when is called */
 static int dispatch_fn(void)
 {
+	printk(KERN_ALERT "Kernel thread is running...");
 	// explicitly check if the kernel thread can be stop
 	while (!kthread_should_stop())
 	{
@@ -248,7 +259,9 @@ int __init mp2_init(void)
 
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
+	#ifndef DEBUG
 	init_mykernel();
+	#endif
 	return 0;
 }
 
@@ -265,7 +278,7 @@ int freeall(void)
 		{
 			// delete list_head, timer_list
 			// task_struct
-			del_timer(&itr->tm);
+			del_timer_sync(&itr->tm);
 			list_del(&itr->node);
 			kmem_cache_free(mycache, itr);
 		}
@@ -294,5 +307,3 @@ int __exit mp2_exit(void)
 
 module_init(mp2_init);
 module_exit(mp2_exit);
-
-
