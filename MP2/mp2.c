@@ -40,7 +40,7 @@ struct mp2_task_struct{
 	int state;
 };
 
-struct mp2_task_struct * current_task = NULL;
+struct mp2_task_struct * curr_tsk;
 struct kmem_cache * mycache; // cache for the mp2_task_Struct 
 
 /* read callback, handling scheduling new periodical task */
@@ -52,24 +52,21 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 	
 	int buffsize = 2048;
 	char * buf =(char *) kmalloc(buffsize, GFP_KERNEL);
+	// TODO output all registered pid and their period and computation
 	buf[0] = 'a';
 	buf[1] = '0';
-
-	int shift = strlen(buf);
-	// printk(KERN_DEBUG "shift length: %d\n", shift);
-	
-	
+	int shift = strlen(buf);	
 	copy_to_user(userbuff, buf, shift+1);
 	kfree(buf);
 	*offset += (shift);
-	return shift; // if return 1, then one element will actually be returned, len is a alrger number
+	return shift; // if return 1, then one element will actually be returned to the stdout, len is a alrger number
 }
 
 /* when timer is expired, set the state of task to READY and wake up the dispatch thread */
 void tm_callback(unsigned long data)
 {
 	struct mp2_task_struct * tsk = (struct mp2_task_struct *) data;
-	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(data->period));
+	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(tsk->period)); //TODO precision
 	if (tsk->state == SLEEPING) tsk->state = READY;	
 	wake_up_process(dispatch_kth);
 }
@@ -79,11 +76,11 @@ int reg_entry(int pid, int period, int computation){
 	printk(KERN_DEBUG "Register section enterd... params: %d, %d, %d\n", pid, period, computation);
 	
 	struct mp2_task_struct * tsk = kmem_cache_alloc(mycache, GFP_KERNEL); // TODO not sure which flag we should use
-	list_add_tail(tsk->node, &HEAD);
+	list_add_tail(&tsk->node, &HEAD);
 	tsk->pid = pid; 
 	tsk->period = period; 
-	tsk->computation = tsk->computation;
-	set_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // args
+	tsk->computation = computation;
+	setup_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // args
 	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(period));
 	tsk->tsk = find_task_by_pid(pid);
 	tsk->state = SLEEPING; //TODO firstly add the pid to the list, the state is default to be sleeping, so the thread will be wait for at least one time round to be invoked		
@@ -164,9 +161,9 @@ static void set_new_task(struct mp2_task_struct * tsk)
 {
 	struct sched_param sparam;
 	wake_up_process(tsk->tsk);
-	sparam,sched_priority = 99;
+	sparam.sched_priority = 99;
 	sched_setscheduler(tsk->tsk, SCHED_FIFO, &sparam);
-	current_task = tsk;
+	curr_tsk = tsk;  // replace the current_tsk with new chosen task
 	return;
 }
 
@@ -174,7 +171,7 @@ static void set_new_task(struct mp2_task_struct * tsk)
 static void set_old_task(struct mp2_task_struct *tsk)
 {
 	struct sched_param sparam;
-	sparam.sche_priority = 0;
+	sparam.sched_priority = 0;
 	sched_setscheduler(tsk->tsk, SCHED_NORMAL, &sparam);
 	return;
 }
@@ -188,31 +185,34 @@ static int dispatch_fn(void)
 		// kthread should work until signed to be released
 		int min_period = INT_MAX;
 		struct mp2_task_struct * next;
-		struct mp2_task_struct * tmp, i;
-		if (!current_task) min_period = current_task->period;
-		next = current_task;
-		list_for_each_entry_safe(i, tmp, &HEAD, node)
+		struct mp2_task_struct * tmp;
+		struct mp2_task_struct * itr;
+		if (!curr_tsk) min_period = curr_tsk->period;
+		next = curr_tsk;
+		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
-			if (i->state == READY && i->period < min_period) 
+			if (itr->state == READY && itr->period < min_period) 
 			{
-				min_period = i->period;
-				next = i; 
+				min_period = itr->period;
+				next = itr; 
 			}
 		}
-		if (current_task && current_task != next) set_old_task(current_task); 
+		if (curr_tsk && curr_tsk != next) set_old_task(curr_tsk); 
 		if (next != NULL) set_new_task(next);
-		// set kernel thread itself to sleep
+		// set kernel thread itself to sleep, UNINTERRUPTIBLE
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule();
 	};
 	
+	return 0;
+	// do_exit();
 	// finish the dispatch thread
 }
 
 /* used at the start of the program, wake it up at the start */
 static void init_mykernel(void)
 {
-	dispatch_kth = kthread_create(dispatch_fn, NULL, "dispatch_kernel") // func, data, name, args
+	dispatch_kth = kthread_create(dispatch_fn, NULL, "dispatch_kernel"); // func, data, name, args
 	if (!dispatch_kth) 
 		printk(KERN_ALERT "Kernel thread create failed...");
 	else
@@ -224,7 +224,7 @@ static void init_slab(void)
 {
 	char * cache_name = "slab";
 	int size = sizeof(struct mp2_task_struct);
-	mycache = kmem_cache_create(cache_name, size, 0,  SLAB_HWCACHE_ALIGN, NULL, NULL); // construction and decons
+	mycache = kmem_cache_create(cache_name, size, 0,  SLAB_HWCACHE_ALIGN, NULL); // construction and decons
 	return;
 }
 
@@ -246,27 +246,28 @@ int __init mp2_init(void)
 		return -ENOMEM;
 	}
 
-	INIT_LIST(&list);
+	INIT_LIST_HEAD(&HEAD);
 	init_slab();
 	init_mykernel();
 	return 0;
 }
 
 /* free: timer, list_head, mp2_task_struct for each node on the list */
-int freeall(struct list_head * head)
+int freeall(void)
 {
 	printk(KERN_ALERT "Starting free the memory...");
+	curr_tsk = NULL;
 	struct mp2_task_struct * tmp;
-	struct mp2_task_struct * current;
-	if (!list_empty(head)) 
+	struct mp2_task_struct * itr;
+	if (!list_empty(&HEAD)) 
 	{
-		list_for_each_entry_safe(current, tmp, &HEAD, node)
+		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
 			// delete list_head, timer_list
 			// task_struct
-			del_timer(&current->tm);
-			list_del(&current->node);
-			kmem_free(current);
+			del_timer(&itr->tm);
+			list_del(&itr->node);
+			kmem_cache_free(mycache, itr);
 		}
 	}
 	
@@ -283,7 +284,7 @@ int __exit mp2_exit(void)
 	proc_remove(dir);
 	printk("Proc file entry removed successfully!\n");
 
-	freeall(&HEAD);
+	freeall();
 	
 	printk(KERN_DEBUG "Start destroy the mycache...");
 	if (mycache) kmem_cache_destroy(mycache);
