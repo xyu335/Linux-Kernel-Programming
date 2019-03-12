@@ -38,6 +38,7 @@ struct mp2_task_struct{
 	int computation;
 	int pid;
 	int state;
+	// unsigned long starttime; // used for determining if task of current time period has been executed
 };
 
 struct mp2_task_struct * curr_tsk;
@@ -68,11 +69,10 @@ void tm_callback(unsigned long data)
 	struct mp2_task_struct * tsk = (struct mp2_task_struct *) data;
 	#ifdef DEBUG
 	printk(KERN_ALERT "Timer triggered for pid:%d ...", tsk->pid);
-	#else
+	#endif
 	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(tsk->period)); //TODO precision
 	if (tsk->state == SLEEPING) tsk->state = READY;	
 	wake_up_process(dispatch_kth);
-	#endif
 	return;
 }
 
@@ -82,19 +82,28 @@ int freeone(struct mp2_task_struct * itr)
 	#ifdef DEBUG
 	printk(KERN_DEBUG "Starting freeone for pid: %d ...", itr->pid);
 	#endif
-	#ifndef DEBUG
 	del_timer_sync(&itr->tm);
 	list_del(&itr->node);
 	kmem_cache_free(mycache, itr);
-	#endif
 	// what to deal with task_struct itself? 
 	return 0;
+}
+
+/* determine if the entering task will still make the RTS possible to meet all deadlines, return 1 for possible, return 0 for impossible */
+int admission_control(int period, int pid)
+{
+	return 1;
 }
 
 /* entry for write callback function to register the periodic program */ 
 int reg_entry(int pid, int period, int computation){
 	printk(KERN_DEBUG "Register section enterd... params: %d, %d, %d\n", pid, period, computation);
 	
+	if (!admission_control(period, pid)) 
+	{	
+		printk(KERN_ALERT "This task is not qualified for current task sets to meet RTS requirement...");
+		return 1;
+	}
 	struct mp2_task_struct * tsk = kmem_cache_alloc(mycache, GFP_KERNEL); // TODO not sure which flag we should use
 	list_add_tail(&tsk->node, &HEAD);
 	tsk->pid = pid; 
@@ -110,22 +119,50 @@ int reg_entry(int pid, int period, int computation){
 	return 0;
 }
 
+/* iterate through the list to find the mp2 struct with identical pid */
+struct mp2_task_struct * find_by_pid(int pid)
+{
+	struct mp2_task_struct * itr;
+	if (!list_empty(&HEAD))
+	{
+		list_for_each_entry(itr, &HEAD, node)
+		{
+			if (itr->pid == pid) return itr;
+		}
+	}
+	return NULL;
+}
+
+/* set task to sleep till next period, return 1 for successfully sleep, return 0 for no task found */
+int set_task_sleep(int pid)
+{
+	struct mp2_task_struct * tmp = find_by_pid(pid);
+	if (!tmp) return 0;
+	tmp->state = SLEEPING;
+	set_task_state(tmp->tsk, TASK_UNINTERRUPTIBLE);
+	return 1;
+}
+
 /* entry for write callback to yield the function at user's will */
 int yield_entry(int pid){
 	printk(KERN_DEBUG "Yield section enterd... params: %d\n",pid);
+	// TODO: check if it is the next round of execution
+	set_task_sleep(pid); 
+	wake_up_process(dispatch_kth);
+	// wakeup the dispatching thread
 	return 0;
 }
 
 /* deregister the process from the list of task_struct */
 int dereg_entry(int pid){
 	printk(KERN_DEBUG "De-register section enterd... params: %d\n", pid);
-	struct task_struct * tsk = find_task_by_pid(pid);
+	
+	struct mp2_task_struct * tsk = find_by_pid(pid);
 	if (!tsk) 
 	{	printk(KERN_DEBUG "No task struct found with this pid: %d ...", pid);
 		return 1;
 	}
-	struct mp2_task_struct * mp2_tsk = (struct mp2_task_struct *) tsk;
-	freeone(mp2_tsk);
+	freeone(tsk);
 	return 0;
 }
 
@@ -207,7 +244,7 @@ static void set_old_task(struct mp2_task_struct *tsk)
 	return;
 }
 
-/* dispatch thread, schedule new process and save the old process when is called */
+/* dispatch kernel thread, schedule new process and save the old process when is called */
 static int dispatch_fn(void)
 {
 	printk(KERN_ALERT "Kernel thread is running...");
@@ -216,20 +253,29 @@ static int dispatch_fn(void)
 	{
 		// kthread should work until signed to be released
 		int min_period = INT_MAX;
-		struct mp2_task_struct * next;
-		struct mp2_task_struct * tmp;
-		struct mp2_task_struct * itr;
-		if (!curr_tsk) min_period = curr_tsk->period;
-		next = NULL;
+		struct mp2_task_struct * next = NULL;
+		struct mp2_task_struct * tmp = NULL;
+		struct mp2_task_struct * itr = NULL;
+		if (curr_tsk) min_period = curr_tsk->period;
 		// DEFAULT SHOULD BE NULL
-		list_for_each_entry_safe(itr, tmp, &HEAD, node)
+		#ifdef DEBUG 
+		printk(KERN_DEBUG "Start iterate the list to choose process to switch...");
+		#endif
+		if (!list_empty(&HEAD))
 		{
-			if (itr->state == READY && itr->period < min_period) 
-			{
-				min_period = itr->period;
-				next = itr; 
-			}
+		    list_for_each_entry_safe(itr, tmp, &HEAD, node)
+		    {
+			    // decide which task to activate, should take current time into account
+			    if (itr->state == READY && itr->period < min_period) 
+			    {
+				    min_period = itr->period;
+				    next = itr; 
+			    }
+		    }
 		}
+		#ifdef DEBUG
+		printk(KERN_DEBUG "This is the choosen process: next %d, curr_tsk %d ", next, curr_tsk);
+		#endif
 		if (curr_tsk && curr_tsk != next) set_old_task(curr_tsk); 
 		if (next != NULL) set_new_task(next);
 		// set kernel thread itself to sleep, INTERRUPTIBLE
@@ -237,6 +283,7 @@ static int dispatch_fn(void)
 		schedule();
 	};
 	
+	// should release resources owned by kernel thread
 	return 0;
 	// do_exit();
 	// finish the dispatch thread
@@ -283,9 +330,10 @@ int __init mp2_init(void)
 	printk(KERN_DEBUG "Start init list, slab, kernel thread...");
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
-	#ifndef DEBUG
+	// #ifndef DEBUG
+	printk(KERN_DEBUG "Init mykernel started... ");	
+	// #endif
 	init_mykernel();
-	#endif
 	return 0;
 }
 
