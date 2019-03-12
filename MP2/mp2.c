@@ -139,7 +139,7 @@ int set_task_sleep(int pid)
 	struct mp2_task_struct * tmp = find_by_pid(pid);
 	if (!tmp) return 0;
 	tmp->state = SLEEPING;
-	set_task_state(tmp->tsk, TASK_UNINTERRUPTIBLE);
+	set_task_state(tmp->tsk, TASK_INTERRUPTIBLE); // TODO decide if the yield task should be set to Uninterrupt
 	return 1;
 }
 
@@ -251,12 +251,16 @@ static int dispatch_fn(void)
 	// explicitly check if the kernel thread can be stop
 	while (!kthread_should_stop())
 	{
-		// kthread should work until signed to be released
-		int min_period = INT_MAX;
+		// kthread should work until the context switching is finished
+		int min_period = INT_MAX; 
 		struct mp2_task_struct * next = NULL;
 		struct mp2_task_struct * tmp = NULL;
 		struct mp2_task_struct * itr = NULL;
-		if (curr_tsk) min_period = curr_tsk->period;
+		if (curr_tsk) 
+		{
+			min_period = curr_tsk->period;
+			tmp = curr_tsk;
+		}
 		// DEFAULT SHOULD BE NULL
 		#ifdef DEBUG 
 		printk(KERN_DEBUG "Start iterate the list to choose process to switch...");
@@ -269,7 +273,7 @@ static int dispatch_fn(void)
 			    if (itr->state == READY && itr->period < min_period) 
 			    {
 				    min_period = itr->period;
-				    next = itr; 
+				    next = itr;
 			    }
 		    }
 		}
@@ -277,15 +281,15 @@ static int dispatch_fn(void)
 		printk(KERN_DEBUG "This is the choosen process: next %d, curr_tsk %d ", next, curr_tsk);
 		#endif
 		if (curr_tsk && curr_tsk != next) set_old_task(curr_tsk); 
-		if (next != NULL) set_new_task(next);
+		if (next && next != curr_tsk) set_new_task(next); // if the curr == next, there is not need to switch
 		// set kernel thread itself to sleep, INTERRUPTIBLE
-		set_current_state(TASK_INTERRUPTIBLE); 
+		set_current_state(TASK_INTERRUPTIBLE);  // kernel thread should be wakable by the wake_up_process
 		schedule();
 	};
 	
 	// should release resources owned by kernel thread
-	return 0;
 	// do_exit();
+	return 0;
 	// finish the dispatch thread
 }
 
@@ -330,9 +334,9 @@ int __init mp2_init(void)
 	printk(KERN_DEBUG "Start init list, slab, kernel thread...");
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
-	// #ifndef DEBUG
+	#ifdef DEBUG
 	printk(KERN_DEBUG "Init mykernel started... ");	
-	// #endif
+	#endif
 	init_mykernel();
 	return 0;
 }
