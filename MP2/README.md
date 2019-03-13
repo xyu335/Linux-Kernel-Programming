@@ -6,10 +6,9 @@ Progress:
 - Write callback function, Read call back function   
 - Register and deregister  
 - Timer callback 
-
-Todo:   
 - Dispatch kernel thread(save current thread, pick a highest priority thread to context switch)   
 - Yield entry to giveup current period, call the dispatch kernel thread  
-- // think over how to decide if a kernel is still in its period...
-- Admission control function  
-- Test case 
+
+Todo:   
+- Admission control function
+- Parameterized test program with input of ***priod_duration period_times computation_time*** 
