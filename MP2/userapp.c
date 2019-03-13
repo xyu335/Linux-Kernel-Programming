@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/types.h>
 #include <unistd.h> // used for getpid
 
@@ -69,10 +70,11 @@ static void loop(int set_times)
 {
 	printf("entering loop func...\n");
 	int time = 0;
+	// clock_t clk1 = clock();
+	
 	yield();
 	while (time < set_times)
 	{
-		yield();
 		gettimeofday(&tv1, NULL); // vsys_call, not a systm_call but the data on that page is maintained by the kernel
 		gettimeofday(&tv2, NULL);
 		printf("%dth loop start at %lu\n", time+1, tv1.tv_usec);
@@ -82,8 +84,21 @@ static void loop(int set_times)
 		printf("%dth loop end at %lu\n", time+1, tv1.tv_usec);// second precision
 		++time;
 
+		yield();
 	}
 	return;
+}
+
+static float helper()
+{
+	clock_t clk1, clk2;
+	clk1 = clock();
+	printf("start of one round: %fsec\n", (double)clk1 / CLOCKS_PER_SEC);
+	factorial();
+	clk2 = clock();
+	float cost = (double) (clk1-clk1)/CLOCKS_PER_SEC;
+	printf("end of one round: %fsec\n", cost);
+	return cost;
 }
 
 /*
@@ -99,6 +114,7 @@ int main(int argc, char ** argv)
 		printf("please enter parameters in format of: ./userapp <PEPRIOD> <COMPUTATION> <TIMES>\n");
 		return 1;
 	}
+	float comp = helper();
 	gettimeofday(&tv1, NULL);
 	gettimeofday(&tv2, NULL);
 	printf("time started from: %lu and %lu\n", tv1.tv_usec, tv2.tv_usec);
@@ -117,12 +133,7 @@ int main(int argc, char ** argv)
 #else
 int main(int argc, char **argv)
 {
-	gettimeofday(&tv1, NULL);
-	printf("time started from: %lu \n", tv1.tv_usec);
-	times = 10;
-	factorial();
-	gettimeofday(&tv1, NULL); 
-	printf("time started from: %lu \n", tv1.tv_usec);
+	helper();
 	return 0;
 }
 #endif

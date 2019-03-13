@@ -51,15 +51,28 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 	if (*offset > 0) return 0;
 	
 	int buffsize = 2048;
+	char * tmpbuf = (char *) kmalloc(buffsize, GFP_KERNEL);
 	char * buf =(char *) kmalloc(buffsize, GFP_KERNEL);
-	// TODO output all registered pid and their period and computation
-	buf[0] = 'a';
-	buf[1] = '0';
-	int shift = strlen(buf);	
-	copy_to_user(userbuff, buf, shift+1);
+	int off = 0;
+	int size = 0; 
+	struct mp2_task_struct * tmp = NULL;
+	if (!list_empty(&HEAD))
+	{
+		list_for_each_entry(tmp, &HEAD, node)
+		{
+			++size;
+			sprintf(tmpbuf+off, "%d\n\0", tmp->pid);
+			off = strlen(tmpbuf);
+		}
+	}
+	sprintf(buf, "%d\n\0", size);
+	int total_len = strlen(buf) + off;
+	memcpy(buf+strlen(buf), tmpbuf, off+1);
+	copy_to_user(userbuff, buf, total_len + 1);
 	kfree(buf);
-	*offset += (shift);
-	return shift; // if return 1, then one element will actually be returned to the stdout, len is a alrger number
+	kfree(tmpbuf);
+	*offset += (total_len + 1);
+	return total_len + 1; // if return 1, then one element will actually be returned to the stdout, len is a alrger number
 }
 
 /* when timer is expired, set the state of task to READY and wake up the dispatch thread */
@@ -90,8 +103,20 @@ int freeone(struct mp2_task_struct * itr)
 }
 
 /* determine if the entering task will still make the RTS possible to meet all deadlines, return 1 for possible, return 0 for impossible */
-int admission_control(int period, int pid)
+int admission_control(unsigned int period, unsigned int computation, unsigned int pid)
 {
+	
+	struct mp2_task_struct * tmp;
+	unsigned int sum_comp = 0;
+	unsigned int sum_period = 0;
+	if (!list_empty(&HEAD))
+	{
+		list_for_each_entry(tmp, &HEAD, node)
+		{
+			;
+		}
+	}
+	
 	return 1;
 }
 
@@ -99,7 +124,7 @@ int admission_control(int period, int pid)
 int reg_entry(int pid, int period, int computation){
 	printk(KERN_DEBUG "Register section enterd... params: %d, %d, %d\n", pid, period, computation);
 	
-	if (!admission_control(period, pid)) 
+	if (!admission_control(period, computation, pid)) 
 	{	
 		printk(KERN_ALERT "This task is not qualified for current task sets to meet RTS requirement...");
 		return 1;
@@ -149,7 +174,7 @@ int set_task_sleep(int pid)
 }
 
 /* entry for write callback to yield the function at user's will */
-int yield_entry(int pid){
+void yield_entry(int pid){
 	#ifdef DEBUG
 	if (curr_tsk) printk(KERN_DEBUG "current task pid is %d \n", curr_tsk->pid);
 	else printk(KERN_DEBUG "there is no current task running...");
@@ -167,7 +192,7 @@ int yield_entry(int pid){
 		mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 		yield_tsk->state = READY;
 		wake_up_process(dispatch_kth);
-		return 0;
+		return;
 	}
 
 	// if task's next period has not begun
@@ -180,8 +205,8 @@ int yield_entry(int pid){
 	  
 	if (!ret) return 0; // if no tsk is related to the pid, then do not wake up dispatch
 	wake_up_process(dispatch_kth);
+	schedule();
 	// wakeup the dispatching thread
-	return 0;
 }
 
 /* deregister the process from the list of task_struct */
