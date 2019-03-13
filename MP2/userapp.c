@@ -8,7 +8,17 @@
 #include <unistd.h> // used for getpid
 
 #define PROC_ENTRY "/proc/mp2/status"
-#define FACTORIAL_N INT_MAX
+// fine FACTORIAL_N INT_MAX
+#define FACTORIAL_N 2000000
+
+/* 
+	in this program, we are going to test the functionality of the RTS
+	we start by register one program at the same time. 
+
+	we input with {period, computation, times for the program. } 
+
+	then we will try to register several at the same time. 
+*/
 
 struct timeval tv1, tv2; 
 pid_t curr_pid;

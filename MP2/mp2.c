@@ -18,8 +18,6 @@
 #define RUNNING 	2
 #define SLEEPING	0
 
-#define CACHE_SIZE 20
-
 MODULE_AUTHOR("GROUP_ID");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CS 423 MP2");
@@ -70,6 +68,7 @@ void tm_callback(unsigned long data)
 	#ifdef DEBUG
 	printk(KERN_ALERT "Timer triggered for pid:%d ...", tsk->pid);
 	#endif
+	// set timer for next period, 
 	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(tsk->period)); //TODO precision
 	if (tsk->state == SLEEPING) tsk->state = READY;	
 	wake_up_process(dispatch_kth);
@@ -124,7 +123,7 @@ struct mp2_task_struct * find_by_pid(int pid)
 {
 	struct mp2_task_struct * itr;
 	if (!list_empty(&HEAD))
-	{
+	{ // TODO add lock
 		list_for_each_entry(itr, &HEAD, node)
 		{
 			if (itr->pid == pid) return itr;
@@ -248,8 +247,8 @@ static void set_old_task(struct mp2_task_struct *tsk)
 static int dispatch_fn(void)
 {
 	printk(KERN_ALERT "Kernel thread is running...");
-	// explicitly check if the kernel thread can be stop
-	while (!kthread_should_stop())
+	// explicitly check if the kernel thread can be stop, kernel will signaled if there is no need to poll
+	while (!kthread_should_stop()) 
 	{
 		// kthread should work until the context switching is finished
 		int min_period = INT_MAX; 
@@ -288,9 +287,8 @@ static int dispatch_fn(void)
 	};
 	
 	// should release resources owned by kernel thread
-	// do_exit();
+	// do_exit(); there is no need to call exit, other that we should return the val 
 	return 0;
-	// finish the dispatch thread
 }
 
 /* used at the start of the program, wake it up at the start */
@@ -371,7 +369,7 @@ int __exit mp2_exit(void)
 	printk("Proc file entry removed successfully!\n");
 
 	freeall();
-	
+	int ret = kthread_stop(dispatch_kth); // kill the kernel code, when the task is chosen, it will wake up the process to wait for its completion
 	printk(KERN_DEBUG "Start destroy the mycache...");
 	if (mycache) kmem_cache_destroy(mycache);
 	return 0;
