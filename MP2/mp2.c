@@ -146,7 +146,8 @@ int set_task_sleep(int pid)
 int yield_entry(int pid){
 	printk(KERN_DEBUG "Yield section enterd... params: %d\n",pid);
 	// TODO: check if it is the next round of execution
-	set_task_sleep(pid); 
+	int ret = set_task_sleep(pid);
+	if (!ret) return 0; // if the process has already been in SLEEPING, then there is no need to reschedule
 	wake_up_process(dispatch_kth);
 	// wakeup the dispatching thread
 	return 0;
@@ -277,11 +278,13 @@ static int dispatch_fn(void)
 		    }
 		}
 		#ifdef DEBUG
+		if (!next) printk(KERN_DEBUG "pid of the chosen proc: %d\n", next->pid);
 		printk(KERN_DEBUG "This is the choosen process: next %d, curr_tsk %d ", next, curr_tsk);
 		#endif
 		if (curr_tsk && curr_tsk != next) set_old_task(curr_tsk); 
 		if (next && next != curr_tsk) set_new_task(next); // if the curr == next, there is not need to switch
 		// set kernel thread itself to sleep, INTERRUPTIBLE
+		printk(KERN_DEBUG "kernel thread is going to sleep...");
 		set_current_state(TASK_INTERRUPTIBLE);  // kernel thread should be wakable by the wake_up_process
 		schedule();
 	};

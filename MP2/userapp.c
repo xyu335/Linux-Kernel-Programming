@@ -8,8 +8,10 @@
 #include <unistd.h> // used for getpid
 
 #define PROC_ENTRY "/proc/mp2/status"
-// fine FACTORIAL_N INT_MAX
-#define FACTORIAL_N 2000000
+//#define FACTORIAL_N INT_MAX
+#define FACTORIAL_N 20000000
+// INTMAX = 213748364847
+#define DEBUG 1
 
 /* 
 	in this program, we are going to test the functionality of the RTS
@@ -23,7 +25,7 @@
 struct timeval tv1, tv2; 
 pid_t curr_pid;
 FILE * fp;
-int period, computation;
+int period, computation, times;
 
 static void factorial(void)
 {
@@ -58,22 +60,23 @@ static void regist(void)
 	fp = fopen(PROC_ENTRY, "r+");	
 	fprintf(fp, "R,%d,%d,%d", curr_pid, period, computation);
 	fflush(fp);
+
 	printf("register finished...\n");
 	return;	
 }
 
-static void loop(int times)
+static void loop(int set_times)
 {
 	printf("entering loop func...\n");
 	int time = 0;
-	while (time < times)
+	while (time < set_times)
 	{
 		yield();
 		gettimeofday(&tv1, NULL); // vsys_call, not a systm_call but the data on that page is maintained by the kernel
-		printf("%dth loop start at %f", time+1, tv1.tv_sec);
+		printf("%dth loop start at %lu", time+1, tv1.tv_usec);
 		factorial();
 		gettimeofday(&tv1, NULL);
-		printf("%dth loop end at %f", time+1, tv1.tv_sec);// second precision
+		printf("%dth loop end at %lu", time+1, tv1.tv_usec);// second precision
 		++time;
 
 	}
@@ -85,14 +88,15 @@ static void loop(int times)
 	in each round of execution, we yield once we return from the task
 	when the run times defined by the input is reached, we send request by calling deregister()
 */
+#ifndef DEBUG
 int main(int argc, char ** argv)
 {
 	gettimeofday(&tv1, NULL);
 	gettimeofday(&tv2, NULL);
-	printf("time started from: %f and %f\n", tv1.tv_sec, tv2.tv_sec);
+	printf("time started from: %lu and %lu\n", tv1.tv_usec, tv2.tv_usec);
 	period = atoi(argv[1]);
 	computation = atoi(argv[2]);	
-	int times = atoi(argv[3]);
+	times = atoi(argv[3]);
 	curr_pid = getpid();
 	printf("input params: pid %d, period %d, computation %d times %d \n", curr_pid, period, computation, times);
 	regist();
@@ -102,3 +106,16 @@ int main(int argc, char ** argv)
 	fclose(fp);
 	return 0;
 }
+#else
+int main(int argc, char **argv)
+{
+	gettimeofday(&tv1, NULL);
+	printf("time started from: %lu \n", tv1.tv_usec);
+	times = 10;
+	factorial();
+	gettimeofday(&tv1, NULL); 
+	printf("time started from: %lu \n", tv1.tv_usec);
+	return 0;
+}
+#endif
+
