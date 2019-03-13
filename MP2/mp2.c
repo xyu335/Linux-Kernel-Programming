@@ -28,15 +28,16 @@ struct proc_dir_entry * fp;
 struct proc_dir_entry * dir;
 struct list_head HEAD;
 struct task_struct * dispatch_kth;
+
 struct mp2_task_struct{
 	struct task_struct * tsk;
 	struct list_head node;
 	struct timer_list tm;
-	int period;
-	int computation;
-	int pid;
-	int state;
-	// unsigned long starttime; // used for determining if task of current time period has been executed
+	unsigned int period;
+	unsigned int computation;
+	unsigned int pid;
+	unsigned int state;
+	uint64_t next_period;
 };
 
 struct mp2_task_struct * curr_tsk;
@@ -69,7 +70,7 @@ void tm_callback(unsigned long data)
 	printk(KERN_ALERT "Timer triggered for pid:%d ...", tsk->pid);
 	#endif
 	// set timer for next period, 
-	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(tsk->period)); //TODO precision
+	// mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(tsk->period));
 	if (tsk->state == SLEEPING) tsk->state = READY;	
 	wake_up_process(dispatch_kth);
 	return;
@@ -109,9 +110,9 @@ int reg_entry(int pid, int period, int computation){
 	tsk->period = period; 
 	tsk->computation = computation;
 	tsk->tsk = find_task_by_pid(pid);
+	tsk->next_period = 0; 
 	tsk->state = SLEEPING; //Firstly add the pid to the list, the state is default to be sleeping, so the thread will be wait for at least one time round to be invoked		
 	setup_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // args
-	mod_timer(&tsk->tm, jiffies + msecs_to_jiffies(period));
 	#ifdef DEBUG
 	printk(KERN_DEBUG "PID % is finishing register; period %d; computation %d.", tsk->pid, tsk->period, tsk->computation);
 	#endif 	
@@ -136,19 +137,47 @@ struct mp2_task_struct * find_by_pid(int pid)
 int set_task_sleep(int pid)
 {
 	struct mp2_task_struct * tmp = find_by_pid(pid);
-	if (tmp == curr_tsk) curr_tsk = NULL;
+	// if (tmp == curr_tsk) curr_tsk = NULL;
 	if (!tmp) return 0;
+	if (tmp == curr_tsk) curr_tsk = NULL; 
+	#ifdef DEBUG
+	printk(KERN_DEBUG "task with pid %d is set to sleep...\n", tmp->pid);
+	#endif
 	tmp->state = SLEEPING;
-	set_task_state(tmp->tsk, TASK_INTERRUPTIBLE); // TODO decide if the yield task should be set to Uninterrupt
+	set_task_state(tmp->tsk, TASK_UNINTERRUPTIBLE); // TODO decide if the yield task should be set to Uninterrupt
 	return 1;
 }
 
 /* entry for write callback to yield the function at user's will */
 int yield_entry(int pid){
+	#ifdef DEBUG
+	if (curr_tsk) printk(KERN_DEBUG "current task pid is %d \n", curr_tsk->pid);
+	else printk(KERN_DEBUG "there is no current task running...");
+	#endif
 	printk(KERN_DEBUG "Yield section enterd... params: %d\n",pid);
-	// TODO: check if it is the next round of execution
-	int ret = set_task_sleep(pid);
-	if (!ret) return 0; // if the process has already been in SLEEPING, then there is no need to reschedule
+	int ret = 1;
+
+	struct mp2_task_struct * yield_tsk = find_by_pid(pid);
+
+	// ACTIVATION: to activate the first timer, then wakeup the dispatch
+	if (yield_tsk->next_period == 0) 
+	{
+		yield_tsk->next_period = jiffies + yield_tsk->period;
+		mod_timer(&yield_tsk->tm, yield_tsk->next_period);
+		yield_tsk->state = READY;
+		wake_up_process(dispatch_kth);
+		return 0;
+	}
+
+	// if task's next period has not begun
+	if (jiffies < yield_tsk->next_period) 
+	{
+	  ret = set_task_sleep(pid);
+	  mod_timer(&yield_tsk->tm, yield_tsk->next_period);
+	}
+	yield_tsk->next_period += yield_tsk->period;
+	  
+	if (!ret) return 0; // if no tsk is related to the pid, then do not wake up dispatch
 	wake_up_process(dispatch_kth);
 	// wakeup the dispatching thread
 	return 0;
@@ -230,6 +259,7 @@ static void set_new_task(struct mp2_task_struct * tsk)
 	struct sched_param sparam;
 	wake_up_process(tsk->tsk);
 	sparam.sched_priority = 99;
+	tsk->state = RUNNING;
 	sched_setscheduler(tsk->tsk, SCHED_FIFO, &sparam);
 	curr_tsk = tsk;  // replace the current_tsk with new chosen task
 	return;
@@ -253,15 +283,11 @@ static int dispatch_fn(void)
 	while (!kthread_should_stop()) 
 	{
 		// kthread should work until the context switching is finished
-		int min_period = INT_MAX; 
+		unsigned int min_period = INT_MAX; 
 		struct mp2_task_struct * next = NULL;
 		struct mp2_task_struct * tmp = NULL;
 		struct mp2_task_struct * itr = NULL;
-		if (curr_tsk) 
-		{
-			min_period = curr_tsk->period;
-			next = curr_tsk;
-		}
+		// if (curr_tsk) 
 		// DEFAULT SHOULD BE NULL
 		#ifdef DEBUG 
 		printk(KERN_DEBUG "Start iterate the list to choose process to switch...");
@@ -282,7 +308,7 @@ static int dispatch_fn(void)
 		if (next) printk(KERN_DEBUG "pid of the chosen proc: %d\n", next->pid);
 		printk(KERN_DEBUG "This is the choosen process: next %d, curr_tsk %d ", next, curr_tsk);
 		#endif
-		if (next && curr_tsk != next) 
+		if (next) 
 		{	
 			if (curr_tsk) set_old_task(curr_tsk); 
 			set_new_task(next); // if the curr == next, there is not need to switch

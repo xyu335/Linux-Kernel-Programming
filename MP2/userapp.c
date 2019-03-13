@@ -40,7 +40,7 @@ static void factorial(void)
 
 static void yield(void)
 {
-	fprintf(fp, "Y,%d", curr_pid);
+	fprintf(fp, "Y,%d\n", curr_pid);
 	fflush(fp);
 	return;
 }
@@ -48,7 +48,7 @@ static void yield(void)
 /* deregister to the kernel */
 static void deregister(void)
 {
-	fprintf(fp, "D,%d", curr_pid);
+	fprintf(fp, "D,%d\n", curr_pid);
 	fflush(fp);
 	printf("deregister finished... \n");
 	return;
@@ -58,7 +58,7 @@ static void deregister(void)
 static void regist(void)
 {
 	fp = fopen(PROC_ENTRY, "r+");	
-	fprintf(fp, "R,%d,%d,%d", curr_pid, period, computation);
+	fprintf(fp, "R,%d,%d,%d\n", curr_pid, period, computation);
 	fflush(fp);
 
 	printf("register finished...\n");
@@ -73,10 +73,12 @@ static void loop(int set_times)
 	{
 		yield();
 		gettimeofday(&tv1, NULL); // vsys_call, not a systm_call but the data on that page is maintained by the kernel
-		printf("%dth loop start at %lu", time+1, tv1.tv_usec);
+		gettimeofday(&tv2, NULL);
+		printf("%dth loop start at %lu\n", time+1, tv1.tv_usec);
 		factorial();
 		gettimeofday(&tv1, NULL);
-		printf("%dth loop end at %lu", time+1, tv1.tv_usec);// second precision
+		gettimeofday(&tv2, NULL);
+		printf("%dth loop end at %lu\n", time+1, tv1.tv_usec);// second precision
 		++time;
 
 	}
@@ -107,7 +109,7 @@ int main(int argc, char ** argv)
 	regist();
 	loop(times);
 	deregister();
-	printf("finishing deregister...");
+	printf("finishing deregister...\n");
 	fclose(fp);
 	return 0;
 }
