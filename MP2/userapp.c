@@ -11,7 +11,7 @@
 //#define FACTORIAL_N INT_MAX
 #define FACTORIAL_N 20000000
 // INTMAX = 213748364847
-#define DEBUG 1
+//#define DEBUG 1
 
 /* 
 	in this program, we are going to test the functionality of the RTS
@@ -91,6 +91,11 @@ static void loop(int set_times)
 #ifndef DEBUG
 int main(int argc, char ** argv)
 {
+	if (argc != 4)
+	{
+		printf("please enter parameters in format of: ./userapp <PEPRIOD> <COMPUTATION> <TIMES>\n");
+		return 1;
+	}
 	gettimeofday(&tv1, NULL);
 	gettimeofday(&tv2, NULL);
 	printf("time started from: %lu and %lu\n", tv1.tv_usec, tv2.tv_usec);

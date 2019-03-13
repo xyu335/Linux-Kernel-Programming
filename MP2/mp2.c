@@ -136,6 +136,7 @@ struct mp2_task_struct * find_by_pid(int pid)
 int set_task_sleep(int pid)
 {
 	struct mp2_task_struct * tmp = find_by_pid(pid);
+	if (tmp == curr_tsk) curr_tsk = NULL;
 	if (!tmp) return 0;
 	tmp->state = SLEEPING;
 	set_task_state(tmp->tsk, TASK_INTERRUPTIBLE); // TODO decide if the yield task should be set to Uninterrupt
@@ -259,7 +260,7 @@ static int dispatch_fn(void)
 		if (curr_tsk) 
 		{
 			min_period = curr_tsk->period;
-			tmp = curr_tsk;
+			next = curr_tsk;
 		}
 		// DEFAULT SHOULD BE NULL
 		#ifdef DEBUG 
@@ -278,11 +279,14 @@ static int dispatch_fn(void)
 		    }
 		}
 		#ifdef DEBUG
-		if (!next) printk(KERN_DEBUG "pid of the chosen proc: %d\n", next->pid);
+		if (next) printk(KERN_DEBUG "pid of the chosen proc: %d\n", next->pid);
 		printk(KERN_DEBUG "This is the choosen process: next %d, curr_tsk %d ", next, curr_tsk);
 		#endif
-		if (curr_tsk && curr_tsk != next) set_old_task(curr_tsk); 
-		if (next && next != curr_tsk) set_new_task(next); // if the curr == next, there is not need to switch
+		if (next && curr_tsk != next) 
+		{	
+			if (curr_tsk) set_old_task(curr_tsk); 
+			set_new_task(next); // if the curr == next, there is not need to switch
+		}
 		// set kernel thread itself to sleep, INTERRUPTIBLE
 		printk(KERN_DEBUG "kernel thread is going to sleep...");
 		set_current_state(TASK_INTERRUPTIBLE);  // kernel thread should be wakable by the wake_up_process
