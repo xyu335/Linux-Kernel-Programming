@@ -162,6 +162,7 @@ int yield_entry(int pid){
 	// ACTIVATION: to activate the first timer, then wakeup the dispatch
 	if (yield_tsk->next_period == 0) 
 	{
+		printk(KERN_DEBUG "process activcation: yield first called for this process\n");
 		yield_tsk->next_period = jiffies + yield_tsk->period;
 		mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 		yield_tsk->state = READY;
@@ -171,9 +172,9 @@ int yield_entry(int pid){
 
 	// if task's next period has not begun
 	if (jiffies < yield_tsk->next_period) 
-	{
-	  ret = set_task_sleep(pid);
-	  mod_timer(&yield_tsk->tm, yield_tsk->next_period);
+	{	
+	  	ret = set_task_sleep(pid);
+	  	mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 	}
 	yield_tsk->next_period += yield_tsk->period;
 	  

@@ -69,6 +69,7 @@ static void loop(int set_times)
 {
 	printf("entering loop func...\n");
 	int time = 0;
+	yield();
 	while (time < set_times)
 	{
 		yield();
