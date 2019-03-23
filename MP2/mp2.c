@@ -130,7 +130,7 @@ int reg_entry(int pid, unsigned int period, unsigned int computation){
 		printk(KERN_ALERT "This task is not qualified for current task sets to meet RTS requirement...");
 		return 1;
 	}
-	struct mp2_task_struct * tsk = kmem_cache_alloc(mycache, GFP_KERNEL); // TODO not sure which flag we should use
+	struct mp2_task_struct * tsk = kmem_cache_alloc(mycache, GFP_KERNEL);
 	list_add_tail(&tsk->node, &HEAD);
 	tsk->pid = pid; 
 	tsk->period = period; // jiffies unsigned long
@@ -138,8 +138,8 @@ int reg_entry(int pid, unsigned int period, unsigned int computation){
 	tsk->tsk = find_task_by_pid(pid);
 	tsk->next_period = 0; 
 	tsk->state = SLEEPING; //Firstly add the pid to the list, the state is default to be sleeping, so the thread will be wait for at least one time round to be invoked		
-	setup_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // args
-	// TODO init timer 
+	setup_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // timer init in first yield function 
+
 	#ifdef DEBUG
 	printk(KERN_DEBUG "PID % is finishing register; period %d; computation %d.", tsk->pid, tsk->period, tsk->computation);
 	#endif 	
@@ -172,9 +172,10 @@ int set_task_sleep(int pid)
 	#endif
 	tmp->state = SLEEPING;
 	set_task_state(tmp->tsk, TASK_UNINTERRUPTIBLE); // decide if the yield task should be set to Uninterrupt
-	// TODO, schedule needed? same process stack may not need this
+	// schedule not needed since same process stack may not need this
 	return 1;
 }
+
 
 /* entry for write callback to yield the function at user's will */
 void yield_entry(int pid){
@@ -191,10 +192,10 @@ void yield_entry(int pid){
 	if (yield_tsk->next_period == 0) 
 	{
 		printk(KERN_DEBUG "Task activcation: yield first called for this process\n");
-		yield_tsk->next_period = jiffies + jiffies_to_msec(yield_tsk->period);
+		yield_tsk->next_period = jiffies + jiffies_to_msecs(yield_tsk->period);
 		mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 		yield_tsk->state = READY; //TODO: current process,should be put to NORMAL queue if not chosen
-		wake_up_process(dispatch_kth);
+		wake_up_process(dispatch_kth); 
 		return;
 	}
 
@@ -204,11 +205,11 @@ void yield_entry(int pid){
 	  	ret = set_task_sleep(pid);
 	  	mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 	}
-	yield_tsk->next_period += jiffies_to_msec(yield_tsk->period);
-	  
+	yield_tsk->next_period += jiffies_to_msecs(yield_tsk->period);
+	printk(KERN_DEBUG "yield set the timernext_period to be %lu\n", yield_tsk->next_period);
 	if (!ret) return 0; // if no tsk is related to the pid, then do not wake up dispatch
 	wake_up_process(dispatch_kth);
-	schedule();
+	schedule(); // TODO schedule() not enabled 
 	// wakeup the dispatching thread
 }
 
@@ -326,19 +327,22 @@ static int dispatch_fn(void)
 		    list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		    {
 			    // decide which task to activate, should take current time into account
-			    if (itr->state == READY && itr->period < min_period) 
+			    if (itr->state != SLEEPING && itr->period < min_period)  // itr->state == READY | RUNNING
 			    {
 				    min_period = itr->period;
 				    next = itr;
 			    }
 		    }
 		}
+		// TODO check running task's period, to decide the next task
+		// TODO situation: dispatch is interrupted by another timer 
 		#ifdef DEBUG
 		if (next) printk(KERN_DEBUG "pid of the chosen proc: %d\n", next->pid);
 		printk(KERN_DEBUG "This is the choosen pid's mp_struct pointer: next %d, curr_tsk %d ", next, curr_tsk);
 		#endif
 		if (next) 
 		{	
+			if (curr_tsk == next) continue;
 			if (curr_tsk) set_old_task(curr_tsk); 
 			set_new_task(next); // if the curr == next, there is not need to switch
 		}
