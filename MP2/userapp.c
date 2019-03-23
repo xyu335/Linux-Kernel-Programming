@@ -72,16 +72,17 @@ static void loop(int set_times)
 	int time = 0;
 	// clock_t clk1 = clock();
 	
+	// after register, yield to get timer activated
 	yield();
 	while (time < set_times)
 	{
 		gettimeofday(&tv1, NULL); // vsys_call, not a systm_call but the data on that page is maintained by the kernel
 		gettimeofday(&tv2, NULL);
-		printf("%dth loop start at %lu\n", time+1, tv1.tv_usec);
+		printf("%dth loop wakeup at %lu\n", time+1, tv1.tv_usec);
 		factorial();
 		gettimeofday(&tv1, NULL);
 		gettimeofday(&tv2, NULL);
-		printf("%dth loop end at %lu\n", time+1, tv1.tv_usec);// second precision
+		printf("%dth loop ready to sleep at %lu\n", time+1, tv1.tv_usec);// second precision
 		++time;
 
 		yield();
@@ -118,9 +119,9 @@ int main(int argc, char ** argv)
 	gettimeofday(&tv1, NULL);
 	gettimeofday(&tv2, NULL);
 	printf("time started from: %lu and %lu\n", tv1.tv_usec, tv2.tv_usec);
-	period = atoi(argv[1]);
+	period = atoi(argv[1]); // msec unit
 	computation = atoi(argv[2]);	
-	times = atoi(argv[3]);
+	times = atoi(argv[3]); // 1 unit
 	curr_pid = getpid();
 	printf("input params: pid %d, period %d, computation %d times %d \n", curr_pid, period, computation, times);
 	regist();
