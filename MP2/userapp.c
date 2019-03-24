@@ -72,18 +72,20 @@ static void loop(int set_times)
 	int time = 0;
 	// clock_t clk1 = clock();
 	
-	// after register, yield to get timer activated
 	yield();
+	// after register, yield to get timer activated
 	while (time < set_times)
 	{
 		gettimeofday(&tv1, NULL); // vsys_call, not a systm_call but the data on that page is maintained by the kernel
 		gettimeofday(&tv2, NULL);
-		printf("%dth loop wakeup at %lu\n", time+1, tv1.tv_usec);
+		printf("%dth loop wakeup at %lu\n", time+1, tv1.tv_sec * 1000);
+		
 		factorial();
 		gettimeofday(&tv1, NULL);
 		gettimeofday(&tv2, NULL);
-		printf("%dth loop ready to sleep at %lu\n", time+1, tv1.tv_usec);// second precision
+		printf("%dth loop ready to sleep at %lu\n", time+1, tv1.tv_sec * 1000);// second precision
 		++time;
+		if (time >= set_times) return;
 		// yield => work => yield
 		yield();
 	}
@@ -97,7 +99,7 @@ static float helper()
 	printf("start of one round: %fsec\n", (double)clk1 / CLOCKS_PER_SEC);
 	factorial();
 	clk2 = clock();
-	float cost = (double) (clk1-clk1)/CLOCKS_PER_SEC;
+	double cost = (double) (clk1-clk2) / CLOCKS_PER_SEC;
 	printf("end of one round: %fsec\n", cost);
 	return cost;
 }
@@ -116,9 +118,6 @@ int main(int argc, char ** argv)
 		return 1;
 	}
 	float comp = helper();
-	gettimeofday(&tv1, NULL);
-	gettimeofday(&tv2, NULL);
-	printf("time started from: %lu and %lu\n", tv1.tv_usec, tv2.tv_usec);
 	period = atoi(argv[1]); // msec unit
 	computation = atoi(argv[2]);	
 	times = atoi(argv[3]); // 1 unit

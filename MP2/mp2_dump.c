@@ -29,9 +29,6 @@ struct proc_dir_entry * fp;
 struct proc_dir_entry * dir;
 struct list_head HEAD;
 struct task_struct * dispatch_kth;
-unsigned long denominator;
-unsigned long numerator;
-
 
 struct mp2_task_struct{
 	struct task_struct * tsk;
@@ -106,28 +103,28 @@ int freeone(struct mp2_task_struct * itr)
 }
 
 /* determine if the entering task will still make the RTS possible to meet all deadlines, return 1 for possible, return 0 for impossible */
-int admission_control(unsigned int period, unsigned int computation, unsigned int pid, int flag)
+int admission_control(unsigned int period, unsigned int computation, unsigned int pid)
 {
-	if (flag == 1) 
-		// deregister, remove the part of computation
-		//TODO
-	if (numerator == 0) 
+	
+	struct mp2_task_struct * tmp;
+	unsigned int sum_comp = 0;
+	unsigned int sum_period = 0;
+	if (!list_empty(&HEAD))
 	{
-		if (computation * 1000 <= 693 * period) return 0;
-	}else {
-		unsigned long curr_den = denominator * period * 693;
-		unsigned long curr_n = numerator * period + computation * denominator;
-		curr_n *= 1000;
-		if (curr_n <= curr_den) return 0;
+		list_for_each_entry(tmp, &HEAD, node)
+		{
+			;
+		}
 	}
-	return 1;
+	
+	return 0;
 }
 
 /* entry for write callback function to register the periodic program */ 
 int reg_entry(int pid, unsigned int period, unsigned int computation){
 	printk(KERN_DEBUG "Register section enterd... params: %d, %d, %d\n", pid, period, computation);
 	
-	if (admission_control(period, computation, pid, 0)) 
+	if (admission_control(period, computation, pid)) 
 	{	
 		printk(KERN_ALERT "This task is not qualified for current task sets to meet RTS requirement...");
 		return 1;
@@ -224,7 +221,6 @@ int dereg_entry(int pid){
 		return 1;
 	}
 	if (tsk == curr_tsk) curr_tsk = NULL;
-	admission_control(tsk->pid, tsk->period, tsk->computation, 1);
 	freeone(tsk);
 	return 0;
 }
@@ -399,8 +395,6 @@ int __init mp2_init(void)
 		return -ENOMEM;
 	}
 	curr_tsk = NULL;
-	denominator = 0;
-	numerator = 0;
 	printk(KERN_DEBUG "Start init list, slab, kernel thread...");
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
