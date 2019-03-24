@@ -193,7 +193,7 @@ void yield_entry(int pid){
 	{
 		printk(KERN_DEBUG "Task activcation: yield first called for this process\n");
 		yield_tsk->next_period = jiffies + jiffies_to_msecs(yield_tsk->period);
-		mod_timer(&yield_tsk->tm, yield_tsk->next_period);
+		//mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 		yield_tsk->state = READY; //TODO: current process,should be put to NORMAL queue if not chosen
 		wake_up_process(dispatch_kth); 
 		return;
@@ -201,17 +201,18 @@ void yield_entry(int pid){
 
 	// if task's next period has not begun
 	if (jiffies < yield_tsk->next_period) 
-	{	
+	{
+		printk(KERN_DEBUG "Yield at jiffies %lu\n", jiffies);	
 	  	ret = set_task_sleep(pid);
 	  	mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 	}
-	yield_tsk->next_period += jiffies_to_msecs(yield_tsk->period);
-	printk(KERN_DEBUG "yield set the timernext_period to be %lu\n", yield_tsk->next_period);
+	yield_tsk->next_period == yield_tsk->next_period + jiffies_to_msecs(yield_tsk->period);
+	printk(KERN_DEBUG "Yield set the timernext jiffies %lu\n", yield_tsk->next_period);
 	if (!ret) return 0; // if no tsk is related to the pid, then do not wake up dispatch
 	wake_up_process(dispatch_kth);
 	schedule(); // TODO schedule() not enabled 
 	// wakeup the dispatching thread
-}
+} //
 
 /* deregister the process from the list of task_struct */
 int dereg_entry(int pid){
@@ -222,6 +223,7 @@ int dereg_entry(int pid){
 	{	printk(KERN_DEBUG "No task struct found with this pid: %d ...", pid);
 		return 1;
 	}
+	if (tsk == curr_tsk) curr_tsk = NULL;
 	freeone(tsk);
 	return 0;
 }
@@ -340,9 +342,8 @@ static int dispatch_fn(void)
 		if (next) printk(KERN_DEBUG "pid of the chosen proc: %d\n", next->pid);
 		printk(KERN_DEBUG "This is the choosen pid's mp_struct pointer: next %d, curr_tsk %d ", next, curr_tsk);
 		#endif
-		if (next) 
+		if (next && curr_tsk != next) 
 		{	
-			if (curr_tsk == next) continue;
 			if (curr_tsk) set_old_task(curr_tsk); 
 			set_new_task(next); // if the curr == next, there is not need to switch
 		}

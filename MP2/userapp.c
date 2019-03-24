@@ -84,7 +84,7 @@ static void loop(int set_times)
 		gettimeofday(&tv2, NULL);
 		printf("%dth loop ready to sleep at %lu\n", time+1, tv1.tv_usec);// second precision
 		++time;
-
+		// yield => work => yield
 		yield();
 	}
 	return;
