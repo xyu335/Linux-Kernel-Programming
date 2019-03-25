@@ -12,10 +12,16 @@
 #include <linux/list.h>  // list of mp2_struct
 #include <linux/timer.h>
 #include <linux/kthread.h>
-//#include <linux/spinlock.h> 
+
+#define LOCK_FREE	1
+
+#ifndef LOCK_FREE
+#include <linux/spinlock.h> 
+#else
 #define spin_lock(node) //test
 #define spin_unlock(node) //test
- 
+#endif
+
 #define DEBUG		1
 #define READY		1
 #define RUNNING 	2
