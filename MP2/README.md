@@ -1,9 +1,9 @@
 # Real-time Rate Monotonic Scheduler(LKM)
 How to run:  
-1. "make" in current source folder, you will get mp2.ko  
-2. "sudo insmod \*.ko" to install the module in your system  
-3. "./test.sh" to run test shell script or you can customize the test case with userapp  
-4. "./userapp" to check the parameters for the test application   
+1. ***"make"*** in current source folder, you will get mp2.ko  
+2. ***"sudo insmod \*.ko"*** to install the module in your system  
+3. ***"./test.sh"*** to run test shell script or you can customize the test case with userapp  
+4. ***"./userapp"*** to check the parameters for the test application   
 
 
 Progress:  
