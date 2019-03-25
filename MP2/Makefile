@@ -9,8 +9,8 @@ RM:=rm
 
 all: clean modules app
 
-obj-m:= mp2.o
-#xy21_MP1-y:=mp1.o
+obj-m:= xy21_MP2.o
+xy21_MP2-y:=mp2.o
 
 modules:
 	$(MAKE) -C $(KERNEL_SRC) M=$(SUBDIR) modules
@@ -19,4 +19,4 @@ app: userapp.c userapp.h
 	$(GCC) -o userapp userapp.c
 
 clean:
-	$(RM) -f userapp *~ *.ko *.o *.mod.c Module.symvers modules.order
+	$(RM) -f userapp *~ *.o *.mod.c Module.symvers modules.order
