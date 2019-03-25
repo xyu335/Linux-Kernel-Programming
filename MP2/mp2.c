@@ -12,7 +12,7 @@
 #include <linux/list.h>  // list of mp2_struct
 #include <linux/timer.h>
 #include <linux/kthread.h>
-
+#include <asm-generic/param.h> 
 #define LOCK_FREE	1
 
 #ifndef LOCK_FREE
@@ -226,7 +226,7 @@ void yield_entry(int pid){
 	if (yield_tsk->next_period == 0) 
 	{
 		printk(KERN_DEBUG "[Yield Activate] yield first called for this process, current time: %lu\n", jiffies);
-		yield_tsk->next_period = jiffies + jiffies_to_msecs(yield_tsk->period);
+		yield_tsk->next_period = jiffies + (yield_tsk->period * USER_HZ)/1000;
 		yield_tsk->state = READY; //TODO:SLEEP or not
 	}
 	else{
@@ -236,9 +236,10 @@ void yield_entry(int pid){
 	  {
 		  ret = set_task_sleep(pid);
 		  mod_timer(&yield_tsk->tm, yield_tsk->next_period);
-		  printk(KERN_DEBUG "[timer reset] pid:%d, jiffies %lu; task's period: %lu\n", yield_tsk->pid, yield_tsk->next_period, jiffies_to_msecs(yield_tsk->period));
+		  printk(KERN_DEBUG "[timer reset] pid:%d, jiffies %lu; task's period: %lu\n", yield_tsk->pid, yield_tsk->next_period, ((yield_tsk->period) * USER_HZ) / 1000);
 	  }
-	  yield_tsk->next_period += jiffies_to_msecs(yield_tsk->period);
+	  printk(KERN_DEBUG "[timer reset FAIL] current timer > next_period pid:%d, jiffies %lu; task's period in j: %lu\n", yield_tsk->pid, yield_tsk->next_period, (yield_tsk->period * USER_HZ) / 1000);
+	  yield_tsk->next_period += (yield_tsk->period * USER_HZ) / 1000;
 	}
 //	spin_unlock(&mylock);
 	wake_up_process(dispatch_kth);
@@ -433,7 +434,7 @@ int __init mp2_init(void)
 	curr_tsk = NULL;
 	denominator = 0;
 	numerator = 0;
-	printk(KERN_DEBUG "[init] list, slab, kernel thread...");
+	printk(KERN_DEBUG "[init] list, slab, kernel thread, USER_HZ is %d...", USER_HZ);
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
 	spin_lock_init(&mylock);
