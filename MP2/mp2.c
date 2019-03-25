@@ -108,19 +108,33 @@ int freeone(struct mp2_task_struct * itr)
 /* determine if the entering task will still make the RTS possible to meet all deadlines, return 1 for possible, return 0 for impossible */
 int admission_control(unsigned int period, unsigned int computation, unsigned int pid, int flag)
 {
-	if (flag == 1) 
-		// deregister, remove the part of computation
-		//TODO
-	if (numerator == 0) 
-	{
-		if (computation * 1000 <= 693 * period) return 0;
-	}else {
-		unsigned long curr_den = denominator * period * 693;
-		unsigned long curr_n = numerator * period + computation * denominator;
-		curr_n *= 1000;
-		if (curr_n <= curr_den) return 0;
+	int ret = 1;
+	if (flag == 1){ 
+		printk(KERN_DEBUG "remove C/P from current admission control: %lu, %lu\n", numerator, denominator);
+		numerator = numerator * period  - computation * denominator;
+		if (numerator == 0) denominator = 0;
+		else denominator *= period;
 	}
-	return 1;
+	else{
+	  printk(KERN_DEBUG "admission control, current C, P: %lu, %lu\n", numerator, denominator);
+	  if (numerator == 0) 
+	  {
+		  if (computation * 1000 <= 693 * period) {
+			ret = 0;
+			denominator = period;
+			numerator = computation;
+		  }
+	  }else {
+		  unsigned long curr_den = denominator * period;
+		  unsigned long curr_n = numerator * period + computation * denominator;
+		  if (curr_n * 1000 <= 693 * curr_den){
+			ret = 0;
+			numerator = curr_n;
+			denominator = curr_den;
+		  }
+	  }
+	}
+	return ret;
 }
 
 /* entry for write callback function to register the periodic program */ 
