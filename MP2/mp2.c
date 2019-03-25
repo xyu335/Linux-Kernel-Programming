@@ -258,6 +258,7 @@ int dereg_entry(int pid){
 	admission_control(tsk->period, tsk->computation, tsk->pid, 1);
 	freeone(tsk);
 	//spin_unlock(&mylock);
+	wake_up_process(dispatch_kth);
 	return 0;
 }
 
