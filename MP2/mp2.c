@@ -12,7 +12,7 @@
 #include <linux/list.h>  // list of mp2_struct
 #include <linux/timer.h>
 #include <linux/kthread.h>
-// #include <linux/jiffies.h> 
+#include <linux/spinlock.h> 
 
 #define DEBUG		1
 #define READY		1
@@ -32,6 +32,8 @@ struct task_struct * dispatch_kth;
 unsigned long denominator;
 unsigned long numerator;
 
+spinlock_t mylock;
+unsigned long flag;
 
 struct mp2_task_struct{
 	struct task_struct * tsk;
@@ -56,10 +58,12 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 	
 	int buffsize = 2048;
 	char * tmpbuf = (char *) kmalloc(buffsize, GFP_KERNEL);
+	tmpbuf[0] = '\0'; // init
 	char * buf =(char *) kmalloc(buffsize, GFP_KERNEL);
 	int off = 0;
 	int size = 0; 
 	struct mp2_task_struct * tmp = NULL;
+	spin_lock(&mylock);
 	if (!list_empty(&HEAD))
 	{
 		list_for_each_entry(tmp, &HEAD, node)
@@ -70,6 +74,7 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 			off = strlen(tmpbuf);
 		}
 	}
+	spin_unlock(&mylock);
 	sprintf(buf, "%d\n\0", size);
 	int total_len = strlen(buf) + off;
 	memcpy(buf+strlen(buf), tmpbuf, off+1);
@@ -101,7 +106,6 @@ int freeone(struct mp2_task_struct * itr)
 	del_timer_sync(&itr->tm);
 	list_del(&itr->node);
 	kmem_cache_free(mycache, itr);
-	// what to deal with task_struct itself? 
 	return 0;
 }
 
@@ -110,13 +114,17 @@ int admission_control(unsigned int period, unsigned int computation, unsigned in
 {
 	int ret = 1;
 	if (flag == 1){ 
-		printk(KERN_DEBUG "remove C/P from current admission control: %lu, %lu\n", numerator, denominator);
-		numerator = numerator * period  - computation * denominator;
-		if (numerator == 0) denominator = 0;
-		else denominator *= period;
+		printk(KERN_DEBUG "removing C/P: %lu, %lu; input C/P: %d, %d\n", numerator, denominator, computation, period);
+		if (numerator * period <= computation * denominator) numerator = 0;
+		else
+		{
+			numerator = numerator *  period - computation *  denominator;
+			denominator *= period;
+		}
+		printk(KERN_DEBUG "C/P removed: %lu, %lu\n", numerator, denominator);
 	}
 	else{
-	  printk(KERN_DEBUG "admission control, current C, P: %lu, %lu\n", numerator, denominator);
+	  printk(KERN_DEBUG "admission control ended, current C, P: %lu, %lu\n", numerator, denominator);
 	  if (numerator == 0) 
 	  {
 		  if (computation * 1000 <= 693 * period) {
@@ -133,6 +141,7 @@ int admission_control(unsigned int period, unsigned int computation, unsigned in
 			denominator = curr_den;
 		  }
 	  }
+	  printk(KERN_DEBUG "admission control ended, current C, P: %lu, %lu\n", numerator, denominator);
 	}
 	return ret;
 }
@@ -141,6 +150,7 @@ int admission_control(unsigned int period, unsigned int computation, unsigned in
 int reg_entry(int pid, unsigned int period, unsigned int computation){
 	printk(KERN_DEBUG "Register section enterd... params: %d, %d, %d\n", pid, period, computation);
 	
+	spin_lock(&mylock);
 	if (admission_control(period, computation, pid, 0)) 
 	{	
 		printk(KERN_ALERT "This task is not qualified for current task sets to meet RTS requirement...");
@@ -155,7 +165,7 @@ int reg_entry(int pid, unsigned int period, unsigned int computation){
 	tsk->next_period = 0; 
 	tsk->state = SLEEPING; //Firstly add the pid to the list, the state is default to be sleeping, so the thread will be wait for at least one time round to be invoked		
 	setup_timer(&tsk->tm, tm_callback, (unsigned long) tsk); // timer init in first yield function 
-
+	spin_unlock(&mylock);
 	#ifdef DEBUG
 	printk(KERN_DEBUG "PID % is finishing register; period %d; computation %d.", tsk->pid, tsk->period, tsk->computation);
 	#endif 	
@@ -179,9 +189,11 @@ struct mp2_task_struct * find_by_pid(int pid)
 /* set task to sleep till next period, return 1 for successfully sleep, return 0 for no task found */
 int set_task_sleep(int pid)
 {
+	spin_lock(&mylock);
 	struct mp2_task_struct * tmp = find_by_pid(pid);
 	if (!tmp) return 0;
 	if (tmp == curr_tsk) curr_tsk = NULL; 
+	spin_unlock(&mylock);
 	#ifdef DEBUG
 	printk(KERN_DEBUG "task with pid %d is set to sleep...\n", tmp->pid);
 	#endif
@@ -200,7 +212,8 @@ void yield_entry(int pid){
 	#endif
 	printk(KERN_DEBUG "Yield section enterd... params: %d\n",pid);
 	int ret = 1;
-
+	
+	spin_lock(&mylock);
 	struct mp2_task_struct * yield_tsk = find_by_pid(pid);
 
 	// ACTIVATION: to activate the first timer, then wakeup the dispatch
@@ -222,6 +235,7 @@ void yield_entry(int pid){
 	  	mod_timer(&yield_tsk->tm, yield_tsk->next_period);
 		printk(KERN_DEBUG "Yield set the timernext jiffies %lu; task's period: %lu\n", yield_tsk->next_period, jiffies_to_msecs(yield_tsk->period));
 	}
+	spin_unlock(&mylock);
 	yield_tsk->next_period += jiffies_to_msecs((unsigned long) yield_tsk->period);
 	// if (!ret) return 0; // if the pid doesn't exist, then there is no need to return. 
 	wake_up_process(dispatch_kth);
@@ -231,15 +245,16 @@ void yield_entry(int pid){
 /* deregister the process from the list of task_struct */
 int dereg_entry(int pid){
 	printk(KERN_DEBUG "De-register section enterd... params: %d\n", pid);
-	
+	spin_lock(&mylock);
 	struct mp2_task_struct * tsk = find_by_pid(pid);
 	if (!tsk) 
 	{	printk(KERN_DEBUG "No task struct found with this pid: %d ...", pid);
 		return 1;
 	}
 	if (tsk == curr_tsk) curr_tsk = NULL;
-	admission_control(tsk->pid, tsk->period, tsk->computation, 1);
+	admission_control(tsk->period, tsk->computation, tsk->pid, 1);
 	freeone(tsk);
+	spin_unlock(&mylock);
 	return 0;
 }
 
@@ -339,6 +354,7 @@ static int dispatch_fn(void)
 		#ifdef DEBUG 
 		printk(KERN_DEBUG "Start iterate the list to choose process to switch...");
 		#endif
+		spin_lock(&mylock);
 		if (!list_empty(&HEAD))
 		{
 		    list_for_each_entry_safe(itr, tmp, &HEAD, node)
@@ -362,7 +378,7 @@ static int dispatch_fn(void)
 			if (curr_tsk) set_old_task(curr_tsk); 
 			set_new_task(next); // if the curr == next, there is not need to switch
 		}
-		
+		spin_unlock(&mylock);
 	
 		// set kernel thread itself to sleep, INTERRUPTIBLE
 		printk(KERN_DEBUG "kernel thread is going to sleep...");
@@ -418,6 +434,7 @@ int __init mp2_init(void)
 	printk(KERN_DEBUG "Start init list, slab, kernel thread...");
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
+	spin_lock_init(&mylock);
 	#ifdef DEBUG
 	printk(KERN_DEBUG "Init mykernel started... ");	
 	#endif
@@ -450,14 +467,16 @@ int __exit mp2_exit(void)
 	// stop all the thread which operate on the linked list
 	// free all the memory on the heap 
 	printk(KERN_ALERT "MODULE UNLOADING...\n");
+	spin_lock(&mylock);
 	proc_remove(fp);
 	proc_remove(dir);
 	printk("Proc file entry removed successfully!\n");
 
 	freeall();
 	int ret = kthread_stop(dispatch_kth); // kill the kernel code, when the task is chosen, it will wake up the process to wait for its completion
-	printk(KERN_DEBUG "Start destroy the mycache...");
-	if (mycache) kmem_cache_destroy(mycache);
+	printk(KERN_DEBUG "Start to destroy the mycache...\n");
+	if (mycache) kmem_cache_destroy(mycache);	
+	spin_unlock(&mylock);
 	return 0;
 }
 

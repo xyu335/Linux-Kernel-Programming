@@ -26,7 +26,7 @@
 struct timeval tv1, tv2; 
 pid_t curr_pid;
 FILE * fp;
-int period, computation, times;
+unsigned int period, computation, times;
 
 static void factorial(void)
 {
@@ -66,6 +66,30 @@ static void regist(void)
 	return;	
 }
 
+static int check(void)
+{
+	printf("check whether current process is registered..\n");
+	FILE * rfp = fopen(PROC_ENTRY, "r");
+	char line[256] = {};
+	int pid = 0;
+	int size = 0;
+	fgets(line, 256, rfp);
+	sscanf(line, "%d", &size);
+	printf("There is %d task registered...\n", size);
+	while (fgets(line, 256, rfp))
+	{
+		sscanf(line, "%d", &pid);
+		printf("read pid: %d\n", pid);
+		if (pid == curr_pid) 
+		{
+			fclose(rfp);
+			return 0;
+		}
+	}
+	fclose(rfp);
+	return 1;
+}
+
 static void loop(int set_times)
 {
 	printf("entering loop func...\n");
@@ -90,7 +114,7 @@ static void loop(int set_times)
 	return;
 }
 
-static double helper()
+static double helper(void)
 {
 	clock_t clk1, clk2;
 	clk1 = clock();
@@ -114,16 +138,23 @@ int main(int argc, char ** argv)
 	unsigned int time_unit = comp * 1000;
 	if (argc != 4)
 	{
-		printf("please enter parameters in format of: ./userapp <PEPRIOD> <COMPUTATION_TIMES> <TIMES>, computation_cost for each round will be %d * <COMPUTATION_TIME> * 1000 ms\n",time_unit);
+		printf("please enter parameters in format of: ./userapp <PEPRIOD> <COMPUTATION_TIMES> <TIMES>, computation_cost for each round will be %d * <COMPUTATION_TIME> ms\n",time_unit);
 		return 1;
 	}
 	period = atoi(argv[1]); // msec unit
 	int computation_times = atoi(argv[2]);	
-	unsigned int computation = comp * computation_times * 1000; // msecs
+	computation = comp * computation_times * 1000; // msecs
 	times = atoi(argv[3]); // 1 unit
 	curr_pid = getpid();
 	printf("input params: pid %d, period %d, computation %d times %d \n", curr_pid, period, computation, times);
+	
 	regist();
+	if (check())
+	{
+		printf("The pid is not registered in the module...\n");
+		fclose(fp);
+		return 1;
+	}
 	loop(times);
 	deregister();
 	printf("finishing deregister...\n");
