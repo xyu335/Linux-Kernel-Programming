@@ -37,12 +37,12 @@ struct proc_dir_entry * fp;
 struct proc_dir_entry * dir;
 struct list_head HEAD;
 struct task_struct * dispatch_kth;
+// used for admission control documentation
 unsigned long denominator;
 unsigned long numerator;
-
+// spinlock
 spinlock_t mylock;
-unsigned long flag;
-
+// mp2 struct
 struct mp2_task_struct{
 	struct task_struct * tsk;
 	struct list_head node;
@@ -53,7 +53,7 @@ struct mp2_task_struct{
 	unsigned int state;
 	uint64_t next_period;
 };
-
+// current task pointer
 struct mp2_task_struct * curr_tsk;
 struct kmem_cache * mycache; // cache for the mp2_task_Struct 
 
@@ -61,9 +61,7 @@ struct kmem_cache * mycache; // cache for the mp2_task_Struct
 static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff_t * offset)
 {
 	printk(KERN_DEBUG "[Read Callback] triggered");
-	// printk(KERN_DEBUG "OFFSET: %d, LEN: %d\n", *offset, len);
 	if (*offset > 0) return 0;
-	
 	int buffsize = 2048;
 	char * tmpbuf = (char *) kmalloc(buffsize, GFP_KERNEL);
 	tmpbuf[0] = '\0'; // init
@@ -77,7 +75,7 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 	{
 		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
-			// output format: tmp->pid\n, output all registered pid
+			// output format: size | itr->pid\n | all pid ...
 			++size;
 			sprintf(tmpbuf+off, "%d\n\0", itr->pid);
 			off = strlen(tmpbuf);
@@ -122,6 +120,7 @@ int freeone(struct mp2_task_struct * itr)
 int admission_control(unsigned int period, unsigned int computation, unsigned int pid, int flag)
 {
 	int ret = 1;
+	// flag == 1, degrister: remove percentage of usage.
 	if (flag == 1){ 
 		printk(KERN_DEBUG "removing C/P: %lu, %lu; input C/P: %d, %d\n", numerator, denominator, computation, period);
 		if (numerator * period <= computation * denominator) numerator = 0;
@@ -130,10 +129,10 @@ int admission_control(unsigned int period, unsigned int computation, unsigned in
 			numerator = numerator *  period - computation *  denominator;
 			denominator *= period;
 		}
-		printk(KERN_DEBUG "C/P removed: %lu, %lu\n", numerator, denominator);
 	}
+	// flag == 0, register: check the addition of usage not exceeding 0.693 with non-float op
 	else{
-	  printk(KERN_DEBUG "admission control ended, current C, P: %lu, %lu\n", numerator, denominator);
+	  printk(KERN_DEBUG "[ad ctrl], current C, P: %lu, %lu\n", numerator, denominator);
 	  if (numerator == 0) 
 	  {
 		  if (computation * 1000 <= 693 * period) {
@@ -150,19 +149,18 @@ int admission_control(unsigned int period, unsigned int computation, unsigned in
 			denominator = curr_den;
 		  }
 	  }
-	  printk(KERN_DEBUG "admission control ended, current C, P: %lu, %lu\n", numerator, denominator);
 	}
 	return ret;
 }
 
 /* entry for write callback function to register the periodic program */ 
 int reg_entry(int pid, unsigned int period, unsigned int computation){
-	printk(KERN_DEBUG "Register section enterd... params: %d, %d, %d\n", pid, period, computation);
+	printk(KERN_DEBUG "[Register] section enterd... params: %d, %d, %d\n", pid, period, computation);
 	
 	spin_lock(&mylock);
 	if (admission_control(period, computation, pid, 0)) 
 	{	
-		printk(KERN_ALERT "This task is not qualified for current task sets to meet RTS requirement...");
+		printk(KERN_ALERT "[ad ctrl fail]This task is not qualified for current task sets to meet RTS requirement...");
 		return 1;
 	}
 	struct mp2_task_struct * tsk = kmem_cache_alloc(mycache, GFP_KERNEL);
@@ -187,7 +185,7 @@ struct mp2_task_struct * find_by_pid(int pid)
 	struct mp2_task_struct * itr = NULL;
 	struct mp2_task_struct * tmp = NULL;
 	if (!list_empty(&HEAD))
-	{ // TODO add lock
+	{ 
 		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
 			if (itr->pid == pid) return itr;
@@ -207,9 +205,8 @@ int set_task_sleep(int pid)
 	#ifdef DEBUG
 	printk(KERN_DEBUG "task with pid %d is set to sleep...\n", tmp->pid);
 	#endif
-	tmp->state = SLEEPING; // TODO, possiblely not sleeping, yield to set old sleep 
-	set_task_state(tmp->tsk, TASK_UNINTERRUPTIBLE); // decide if the yield task should be set to Uninterrupt
-	// schedule not needed since same process stack may not need this
+	tmp->state = SLEEPING; // TODO, possiblely interrupt by its timer
+	set_task_state(tmp->tsk, TASK_UNINTERRUPTIBLE);
 	return 1;
 }
 
@@ -217,10 +214,10 @@ int set_task_sleep(int pid)
 /* entry for write callback to yield the function at user's will */
 void yield_entry(int pid){
 	#ifdef DEBUG
-	if (curr_tsk) printk(KERN_DEBUG "current task pid is %d,and yield input: %d \n", curr_tsk->pid, pid);
-	else printk(KERN_DEBUG "there is no current task running...");
+	if (curr_tsk) printk(KERN_DEBUG "[Yield curr_tsk] pid is %d,and yield input: %d \n", curr_tsk->pid, pid);
+	else printk(KERN_DEBUG "[Yield curr_tsk error] there is no current task running...");
 	#endif
-	printk(KERN_DEBUG "Yield section enterd... params: %d\n",pid);
+	printk(KERN_DEBUG "[Yield section] enterd... params: %d\n",pid);
 	int ret = 1;
 	
 	spin_lock(&mylock);
@@ -229,33 +226,33 @@ void yield_entry(int pid){
 	// ACTIVATION: to activate the first timer, then wakeup the dispatch
 	if (yield_tsk->next_period == 0) 
 	{
-		printk(KERN_DEBUG "Task activcation: yield first called for this process, current time: %lu\n", jiffies);
+		printk(KERN_DEBUG "[Yield Activate] yield first called for this process, current time: %lu\n", jiffies);
 		yield_tsk->next_period = jiffies + jiffies_to_msecs(yield_tsk->period);
-		yield_tsk->state = READY; //TODO: current process,should be put to NORMAL queue if not chosen
+		yield_tsk->state = READY; //TODO:SLEEP or not
 	}
 	else{
-	  printk(KERN_DEBUG "Yield at jiffies %lu\n", jiffies);	
+	  printk(KERN_DEBUG "[Yield] at jiffies %lu\n", jiffies);	
 	  // if task's next period has not begun
 	  if (jiffies < yield_tsk->next_period) 
 	  {
 		  ret = set_task_sleep(pid);
 		  mod_timer(&yield_tsk->tm, yield_tsk->next_period);
-		  printk(KERN_DEBUG "Yield set the timernext jiffies %lu; task's period: %lu\n", yield_tsk->next_period, jiffies_to_msecs(yield_tsk->period));
+		  printk(KERN_DEBUG "[timer reset] pid:%d, jiffies %lu; task's period: %lu\n", yield_tsk->pid, yield_tsk->next_period, jiffies_to_msecs(yield_tsk->period));
 	  }
-	  yield_tsk->next_period += jiffies_to_msecs((unsigned long) yield_tsk->period);
+	  yield_tsk->next_period += jiffies_to_msecs(yield_tsk->period);
 	}
 	spin_unlock(&mylock);
 	wake_up_process(dispatch_kth);
-	schedule(); // TODO schedule() not enabled 
-} //
+	schedule(); // TODO schedule() or not 
+} 
 
 /* deregister the process from the list of task_struct */
 int dereg_entry(int pid){
-	printk(KERN_DEBUG "De-register section enterd... params: %d\n", pid);
+	printk(KERN_DEBUG "[De-register] section enterd for pid: %d\n", pid);
 	spin_lock(&mylock);
 	struct mp2_task_struct * tsk = find_by_pid(pid);
 	if (!tsk) 
-	{	printk(KERN_DEBUG "No task struct found with this pid: %d ...", pid);
+	{	printk(KERN_DEBUG "No task struct found with this pid: %d ...\n", pid);
 		return 1;
 	}
 	if (tsk == curr_tsk) curr_tsk = NULL;
@@ -315,7 +312,7 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 	return len; // mywrite will finish normally without return 0
 }
 
-
+/* proc file init and association */
 static const struct file_operations f_ops = {
 	.owner = THIS_MODULE,
 	.read = myread,
@@ -347,19 +344,16 @@ static void set_old_task(struct mp2_task_struct *tsk)
 /* dispatch kernel thread, schedule new process and save the old process when is called */
 static int dispatch_fn(void)
 {
-	printk(KERN_ALERT "Kernel thread is running...");
+	printk(KERN_ALERT "[Kernel Dispatcher] wake up");
 	// explicitly check if the kernel thread can be stop, kernel will signaled if there is no need to poll
 	while (!kthread_should_stop()) 
 	{
-		// kthread should work until the context switching is finished
 		unsigned int min_period = INT_MAX; 
 		struct mp2_task_struct * next = NULL;
 		struct mp2_task_struct * tmp = NULL;
 		struct mp2_task_struct * itr = NULL;
-		// if (curr_tsk) 
-		// DEFAULT SHOULD BE NULL
 		#ifdef DEBUG 
-		printk(KERN_DEBUG "Start iterate the list to choose process to switch...");
+		printk(KERN_DEBUG "Start iterate to choose highest priority task\n");
 		#endif
 		spin_lock(&mylock);
 		if (!list_empty(&HEAD))
@@ -374,26 +368,24 @@ static int dispatch_fn(void)
 			    }
 		    }
 		}
-		// TODO check running task's period, to decide the next task
 		// TODO situation: dispatch is interrupted by another timer 
 		#ifdef DEBUG
-		if (next) printk(KERN_DEBUG "pid of the chosen proc: %d\n", next->pid);
-		printk(KERN_DEBUG "This is the choosen pid's mp_struct pointer: next %d, curr_tsk %d ", next, curr_tsk);
+		if (next) printk(KERN_DEBUG "[KTH] Pid of the chosen proc: %d\n", next->pid);
+		printk(KERN_DEBUG "[KTH] mp_struct pointer: next %d, curr_tsk %d ", next, curr_tsk);
 		#endif
+		// if next == curr_tsk, no need to switch
 		if (next && curr_tsk != next) 
 		{	
 			if (curr_tsk) set_old_task(curr_tsk); 
-			set_new_task(next); // if the curr == next, there is not need to switch
+			set_new_task(next);
 		}
 		spin_unlock(&mylock);
-	
 		// set kernel thread itself to sleep, INTERRUPTIBLE
-		printk(KERN_DEBUG "kernel thread is going to sleep...");
+		printk(KERN_DEBUG "[KTH] dispatcher is going to sleep...");
 		set_current_state(TASK_INTERRUPTIBLE);  // kernel thread should be wakable by the wake_up_process
 		schedule();
 	};
 	
-	// should release resources owned by kernel thread
 	// do_exit(); there is no need to call exit, other that we should return the val 
 	return 0;
 }
@@ -409,6 +401,7 @@ static void init_mykernel(void)
 	return;
 }
 
+/* init slab allocator */
 static void init_slab(void)
 {
 	printk(KERN_DEBUG "Slab allocator initializing... ");
@@ -417,7 +410,6 @@ static void init_slab(void)
 	mycache = kmem_cache_create(cache_name, size, 0,  SLAB_HWCACHE_ALIGN, NULL); // construction and decons
 	return;
 }
-
 
 /* init list_head, kmemcache, and kernel */
 int __init mp2_init(void)
@@ -438,13 +430,11 @@ int __init mp2_init(void)
 	curr_tsk = NULL;
 	denominator = 0;
 	numerator = 0;
-	printk(KERN_DEBUG "Start init list, slab, kernel thread...");
+	printk(KERN_DEBUG "[init] list, slab, kernel thread...");
 	INIT_LIST_HEAD(&HEAD);
 	init_slab();
 	spin_lock_init(&mylock);
-	#ifdef DEBUG
-	printk(KERN_DEBUG "Init mykernel started... ");	
-	#endif
+	printk(KERN_DEBUG "[init] KTH started");	
 	init_mykernel();
 	return 0;
 }
@@ -464,7 +454,6 @@ int freeall(void)
 			freeone(itr);
 		}
 	}
-	
 	return 0;
 }
 
@@ -478,7 +467,6 @@ int __exit mp2_exit(void)
 	proc_remove(fp);
 	proc_remove(dir);
 	printk("Proc file entry removed successfully!\n");
-
 	freeall();
 	int ret = kthread_stop(dispatch_kth); // kill the kernel code, when the task is chosen, it will wake up the process to wait for its completion
 	printk(KERN_DEBUG "Start to destroy the mycache...\n");
@@ -487,6 +475,6 @@ int __exit mp2_exit(void)
 	return 0;
 }
 
-
+/* associate with module call function */
 module_init(mp2_init);
 module_exit(mp2_exit);

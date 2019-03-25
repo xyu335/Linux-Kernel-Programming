@@ -8,11 +8,10 @@
 #include <sys/types.h>
 #include <unistd.h> // used for getpid
 
+// entry name
 #define PROC_ENTRY "/proc/mp2/status"
-//#define FACTORIAL_N INT_MAX
+// factorial parameter
 #define FACTORIAL_N 20000000
-// INTMAX = 213748364847
-//#define DEBUG 1
 
 /* 
 	in this program, we are going to test the functionality of the RTS
@@ -23,11 +22,13 @@
 	then we will try to register several at the same time. 
 */
 
+// timestamp for 
 struct timeval tv1, tv2; 
 pid_t curr_pid;
 FILE * fp;
 unsigned int period, computation, times;
 
+/* basic computation function */
 static void factorial(void)
 {
 	int out = 0;
@@ -39,6 +40,7 @@ static void factorial(void)
 	return;
 }
 
+/* write call to kernel */
 static void yield(void)
 {
 	fprintf(fp, "Y,%d\n", curr_pid);
@@ -61,11 +63,11 @@ static void regist(void)
 	fp = fopen(PROC_ENTRY, "r+");	
 	fprintf(fp, "R,%d,%d,%d\n", curr_pid, period, computation);
 	fflush(fp);
-
 	printf("register finished...\n");
 	return;	
 }
 
+/* read from kernel */
 static int check(void)
 {
 	printf("check whether current process is registered..\n");
@@ -90,22 +92,21 @@ static int check(void)
 	return 1;
 }
 
-static void loop(int set_times)
+/* loop for set_times */
+static void loop(int set_times, int computation_times)
 {
 	printf("entering loop func...\n");
 	int time = 0;
-	// clock_t clk1 = clock();
-	
 	yield();
 	// after register, yield to get timer activated
 	while (time < set_times)
 	{
 		gettimeofday(&tv1, NULL); // vsys_call, not a systm_call but the data on that page is maintained by the kernel
-		printf("%dth loop wakeup at %lu\n", time+1, tv1.tv_sec * 1000);
-		
-		factorial();
+		printf("%dth loop start at %lu ms\n", time+1, tv1.tv_sec * 1000);
+		int i = 0;
+		for (; i < computation_times; ++i) factorial();
 		gettimeofday(&tv1, NULL);
-		printf("%dth loop ready to sleep at %lu\n", time+1, tv1.tv_sec * 1000);// second precision
+		printf("%dth loop done at %lu ms \n", time+1, tv1.tv_sec * 1000);// second precision
 		++time;
 		if (time >= set_times) return;
 		// yield => work => yield
@@ -114,6 +115,7 @@ static void loop(int set_times)
 	return;
 }
 
+/* helper function to get the time unit of one round of factorial computation */
 static double helper(void)
 {
 	clock_t clk1, clk2;
@@ -131,7 +133,6 @@ static double helper(void)
 	in each round of execution, we yield once we return from the task
 	when the run times defined by the input is reached, we send request by calling deregister()
 */
-#ifndef DEBUG
 int main(int argc, char ** argv)
 {
 	double comp = helper();
@@ -142,7 +143,7 @@ int main(int argc, char ** argv)
 		return 1;
 	}
 	period = atoi(argv[1]); // msec unit
-	int computation_times = atoi(argv[2]);	
+	int computation_times = atoi(argv[2]);
 	computation = comp * computation_times * 1000; // msecs
 	times = atoi(argv[3]); // 1 unit
 	curr_pid = getpid();
@@ -155,17 +156,9 @@ int main(int argc, char ** argv)
 		fclose(fp);
 		return 1;
 	}
-	loop(times);
+	loop(times, computation_times);
 	deregister();
 	printf("finishing deregister...\n");
 	fclose(fp);
 	return 0;
 }
-#else
-int main(int argc, char **argv)
-{
-	helper();
-	return 0;
-}
-#endif
-
