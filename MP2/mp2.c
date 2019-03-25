@@ -65,14 +65,15 @@ static ssize_t myread(struct file * fp, char __user * userbuff, size_t len, loff
 	int off = 0;
 	int size = 0; 
 	struct mp2_task_struct * tmp = NULL;
+	struct mp2_task_struct * itr = NULL;
 	spin_lock(&mylock);
 	if (!list_empty(&HEAD))
 	{
-		list_for_each_entry(tmp, &HEAD, node)
+		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
 			// output format: tmp->pid\n, output all registered pid
 			++size;
-			sprintf(tmpbuf+off, "%d\n\0", tmp->pid);
+			sprintf(tmpbuf+off, "%d\n\0", itr->pid);
 			off = strlen(tmpbuf);
 		}
 	}
@@ -177,10 +178,11 @@ int reg_entry(int pid, unsigned int period, unsigned int computation){
 /* iterate through the list to find the mp2 struct with identical pid */
 struct mp2_task_struct * find_by_pid(int pid)
 {
-	struct mp2_task_struct * itr;
+	struct mp2_task_struct * itr = NULL;
+	struct mp2_task_struct * tmp = NULL;
 	if (!list_empty(&HEAD))
 	{ // TODO add lock
-		list_for_each_entry(itr, &HEAD, node)
+		list_for_each_entry_safe(itr, tmp, &HEAD, node)
 		{
 			if (itr->pid == pid) return itr;
 		}
@@ -446,8 +448,8 @@ int freeall(void)
 {
 	printk(KERN_ALERT "Starting free the memory...");
 	curr_tsk = NULL;
-	struct mp2_task_struct * tmp;
-	struct mp2_task_struct * itr;
+	struct mp2_task_struct * tmp = NULL;
+	struct mp2_task_struct * itr = NULL;
 	if (!list_empty(&HEAD)) 
 	{
 		list_for_each_entry_safe(itr, tmp, &HEAD, node)
