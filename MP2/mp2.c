@@ -12,8 +12,10 @@
 #include <linux/list.h>  // list of mp2_struct
 #include <linux/timer.h>
 #include <linux/kthread.h>
-#include <linux/spinlock.h> 
-
+//#include <linux/spinlock.h> 
+#define spin_lock(node) //test
+#define spin_unlock(node) //test
+ 
 #define DEBUG		1
 #define READY		1
 #define RUNNING 	2
@@ -222,22 +224,19 @@ void yield_entry(int pid){
 		printk(KERN_DEBUG "Task activcation: yield first called for this process, current time: %lu\n", jiffies);
 		yield_tsk->next_period = jiffies + jiffies_to_msecs(yield_tsk->period);
 		yield_tsk->state = READY; //TODO: current process,should be put to NORMAL queue if not chosen
-		// set_task_state(yield_tsk, TASK_INTERRUPTIBLE); // set_task_state doesn't need the schedule
-		wake_up_process(dispatch_kth); 
-		return;
 	}
-
-	printk(KERN_DEBUG "Yield at jiffies %lu\n", jiffies);	
-	// if task's next period has not begun
-	if (jiffies < yield_tsk->next_period) 
-	{
-	  	ret = set_task_sleep(pid);
-	  	mod_timer(&yield_tsk->tm, yield_tsk->next_period);
-		printk(KERN_DEBUG "Yield set the timernext jiffies %lu; task's period: %lu\n", yield_tsk->next_period, jiffies_to_msecs(yield_tsk->period));
+	else{
+	  printk(KERN_DEBUG "Yield at jiffies %lu\n", jiffies);	
+	  // if task's next period has not begun
+	  if (jiffies < yield_tsk->next_period) 
+	  {
+		  ret = set_task_sleep(pid);
+		  mod_timer(&yield_tsk->tm, yield_tsk->next_period);
+		  printk(KERN_DEBUG "Yield set the timernext jiffies %lu; task's period: %lu\n", yield_tsk->next_period, jiffies_to_msecs(yield_tsk->period));
+	  }
+	  yield_tsk->next_period += jiffies_to_msecs((unsigned long) yield_tsk->period);
 	}
 	spin_unlock(&mylock);
-	yield_tsk->next_period += jiffies_to_msecs((unsigned long) yield_tsk->period);
-	// if (!ret) return 0; // if the pid doesn't exist, then there is no need to return. 
 	wake_up_process(dispatch_kth);
 	schedule(); // TODO schedule() not enabled 
 } //
