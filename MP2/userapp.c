@@ -77,12 +77,10 @@ static void loop(int set_times)
 	while (time < set_times)
 	{
 		gettimeofday(&tv1, NULL); // vsys_call, not a systm_call but the data on that page is maintained by the kernel
-		gettimeofday(&tv2, NULL);
 		printf("%dth loop wakeup at %lu\n", time+1, tv1.tv_sec * 1000);
 		
 		factorial();
 		gettimeofday(&tv1, NULL);
-		gettimeofday(&tv2, NULL);
 		printf("%dth loop ready to sleep at %lu\n", time+1, tv1.tv_sec * 1000);// second precision
 		++time;
 		if (time >= set_times) return;
@@ -92,14 +90,14 @@ static void loop(int set_times)
 	return;
 }
 
-static float helper()
+static double helper()
 {
 	clock_t clk1, clk2;
 	clk1 = clock();
 	printf("start of one round: %fsec\n", (double)clk1 / CLOCKS_PER_SEC);
 	factorial();
 	clk2 = clock();
-	double cost = (double) (clk1-clk2) / CLOCKS_PER_SEC;
+	double cost = (double) (clk2-clk1) / CLOCKS_PER_SEC;
 	printf("end of one round: %fsec\n", cost);
 	return cost;
 }
@@ -112,14 +110,16 @@ static float helper()
 #ifndef DEBUG
 int main(int argc, char ** argv)
 {
+	double comp = helper();
+	unsigned int time_unit = comp * 1000;
 	if (argc != 4)
 	{
-		printf("please enter parameters in format of: ./userapp <PEPRIOD> <COMPUTATION> <TIMES>\n");
+		printf("please enter parameters in format of: ./userapp <PEPRIOD> <COMPUTATION_TIMES> <TIMES>, computation_cost for each round will be %d * <COMPUTATION_TIME> * 1000 ms\n",time_unit);
 		return 1;
 	}
-	float comp = helper();
 	period = atoi(argv[1]); // msec unit
-	computation = atoi(argv[2]);	
+	int computation_times = atoi(argv[2]);	
+	unsigned int computation = comp * computation_times * 1000; // msecs
 	times = atoi(argv[3]); // 1 unit
 	curr_pid = getpid();
 	printf("input params: pid %d, period %d, computation %d times %d \n", curr_pid, period, computation, times);
