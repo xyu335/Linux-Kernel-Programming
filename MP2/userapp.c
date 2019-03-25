@@ -51,7 +51,7 @@ static void yield(void)
 /* deregister to the kernel */
 static void deregister(void)
 {
-	printf("De-register entered for %d... \n", curr_pid);
+	printf("pid:%d De-register entered... \n", curr_pid);
 	fprintf(fp, "D,%d\n", curr_pid);
 	fflush(fp);
 	return;
@@ -60,7 +60,7 @@ static void deregister(void)
 /* get the current pid, and pass the period, computation to the kernel module */
 static void regist(void)
 {
-	printf("Register entered for %d..\n", curr_pid);
+	printf("pid:%d Register entered..\n", curr_pid);
 	fp = fopen(PROC_ENTRY, "r+");	
 	fprintf(fp, "R,%d,%d,%d\n", curr_pid, period, computation);
 	fflush(fp);
@@ -70,18 +70,16 @@ static void regist(void)
 /* read from kernel */
 static int check(void)
 {
-	printf("Check enterned for %d..\n", curr_pid);
 	FILE * rfp = fopen(PROC_ENTRY, "r");
 	char line[256] = {};
 	int pid = 0;
 	int size = 0;
 	fgets(line, 256, rfp);
 	sscanf(line, "%d", &size);
-	printf("There is %d task registered...\n", size);
+	printf("pid:%d Check: there are %d task registered...\n", curr_pid, size);
 	while (fgets(line, 256, rfp))
 	{
 		sscanf(line, "%d", &pid);
-		printf("read pid: %d\n", pid);
 		if (pid == curr_pid) 
 		{
 			fclose(rfp);
@@ -95,7 +93,7 @@ static int check(void)
 /* loop for set_times */
 static void loop(int set_times, int computation_times)
 {
-	printf("entering loop func...\n");
+	printf("pid: %d Entering loop\n", curr_pid);
 	int time = 0;
 	yield();
 	// after register, yield to get timer activated
@@ -109,7 +107,6 @@ static void loop(int set_times, int computation_times)
 		printf("pid: %d, %dth task done at %ld ms\n", curr_pid, time+1, tv1.tv_usec / 1000);// second precision
 		++time;
 		if (time >= set_times) return;
-		// yield => work => yield
 		yield();
 	}
 	return;
@@ -120,7 +117,6 @@ static double helper(void)
 {
 	clock_t clk1, clk2;
 	clk1 = clock();
-	// printf("start of one round: %fsec\n", (double)clk1 / CLOCKS_PER_SEC);
 	factorial();
 	clk2 = clock();
 	double cost = (double) (clk2-clk1) / CLOCKS_PER_SEC;
@@ -147,18 +143,18 @@ int main(int argc, char ** argv)
 	computation = comp * computation_times * 1000; // msecs
 	times = atoi(argv[3]); // 1 unit
 	curr_pid = getpid();
-	printf("Input params: pid %d, period %d, computation %d times %d \n", curr_pid, period, computation, times);
+	printf("pid:%d Input params: period %d, computation %d times %d \n", curr_pid, period, computation, times);
 	
 	regist();
 	if (check())
 	{
-		printf("The pid is not registered in the module...\n");
+		printf("pid:%d This pid failed registering in the module...\n", curr_pid);
 		fclose(fp);
 		return 1;
 	}
 	loop(times, computation_times);
 	deregister();
-	printf("Finished userapp for %d\n", curr_pid);
+	printf("pid:%d Finished userapp\n", curr_pid);
 	fclose(fp);
 	return 0;
 }
