@@ -2,6 +2,7 @@
 #define __MP3_GIVEN_INCLUDE__
 
 #include <linux/pid.h>
+#include <linux/sched.h> 
 
 // pid => task struct for register process
 struct task_struct* find_task_by_pid(unsigned int nr)

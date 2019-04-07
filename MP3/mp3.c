@@ -4,13 +4,15 @@
 #include "mp3_given.h"
 #include <linux/proc_fs.h> // fs include proc_create
 #include <linux/fs.h>  // fs include file_operaion
-#include <string.h>
 #include <linux/list.h>  // list
 #include <linux/slab.h> // kmem allocator
 #include <linux/vmalloc.h> // vmalloc interface
-#include <asm-generic/params.h> // support for USER_HZ to translate the jiffies with mcroseconds
+#include <asm-generic/param.h> // support for USER_HZ to translate the jiffies with mcroseconds
+#include <linux/sched.h> // for the task struct defination
+#include <asm-generic/uaccess.h> // copy from user, to user 
 
-MDULE_AUTHOR("GROUP_ID");
+
+MODULE_AUTHOR("GROUP_ID");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CS 423 MP2");
 
@@ -18,6 +20,8 @@ MODULE_DESCRIPTION("CS 423 MP2");
 /* global variable */
 char * proc_filename;
 char * proc_dir;
+struct proc_dir_entry * fp;
+struct proc_dir_entry * dir;
 struct list_head HEAD;
 
 
@@ -29,8 +33,8 @@ struct mp3_task_struct{
   // struct timer_list tm;
   unsigned long cpu_time;
   unsigned long cpu_starttime;
-  unsigned long minor_pf; // page fault
-  unsigned long major_pf; // IO page fault
+  unsigned long min_flt; // page fault
+  unsigned long maj_flt; // IO page fault
   unsigned int pid;
 };
 
@@ -45,6 +49,14 @@ int unreg_entry(int pid)
 {
   printk(KERN_DEBUG "[unreg entry] entered for %d...\n", pid);
   return 0;
+}
+
+
+/* read callback, for all the samples */
+static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_t * offset) 
+{
+
+	return 0;
 }
 
 
@@ -64,7 +76,7 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 
   if (pid == 0) 
   {
-    printk(KERN_ERROR "Failed with parse proc file input, please check your pid input...\n")
+    printk(KERN_ALERT "Failed with parse proc file input, please check your pid input...\n");
     return len;
   }
 
@@ -76,25 +88,22 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
       unreg_entry(pid);
       break;
     default: 
-      printk(KERN_ERROR "this should not happen.\n") 
+      printk(KERN_ALERT "this should not happen.\n");
   }
   printk(KERN_DEBUG "Parsed input is: ops - %d; pid - %d", ops, pid);
   printk(KERN_DEBUG "The input is %s \n", buff);
   return len; // mywrite will finish normally without return 0
 }
 
-
-
 // link function with proc file
-static　struct file_operations f_ops = {
+static struct file_operations f_ops = {
   .owner=THIS_MODULE,
   .read=myread,
   .write=mywrite
-}
-
+};
 
 /* init list_head, and kmemcache */
-int __init mp2_init(void)
+int __init mp3_init(void)
 {
   // set up proc file entry
   // kernel list_head init
@@ -105,7 +114,7 @@ int __init mp2_init(void)
   dir = proc_mkdir(proc_dir, NULL);
   fp = proc_create(proc_filename, 0666, dir, &f_ops);
   if (!fp){
-    printk(KERN_ERROR "File entry creation failed...\n");
+    printk(KERN_ALERT "File entry creation failed...\n");
     proc_remove(dir);
     return -ENOMEM;
   }
@@ -117,7 +126,7 @@ int __init mp2_init(void)
 
 
 /* remove proc dir and file, freeall nodes on the listm destroy the memcache */                            
-int __exit mp2_exit(void)
+int __exit mp3_exit(void)
 {
   // stop all the thread which operate on the linked list
   // free all the memory on the heap 
@@ -133,6 +142,6 @@ int __exit mp2_exit(void)
 
 
 /* associate with module call function */    
-module_init(mp2_init);
-module_exit(mp2_exit);
+module_init(mp3_init);
+module_exit(mp3_exit);
 
