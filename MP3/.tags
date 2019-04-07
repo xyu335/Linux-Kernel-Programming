@@ -1,0 +1,22 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+BUFD_MAX	monitor.c	13;"	d	file:
+NPAGES	monitor.c	12;"	d	file:
+N_ITERATION	work.c	12;"	d	file:
+__MP3_GIVEN_INCLUDE__	mp3_given.h	2;"	d
+buf_exit	monitor.c	/^void buf_exit()$/;"	f
+buf_fd	monitor.c	/^static int buf_fd = -1;$/;"	v	file:
+buf_init	monitor.c	/^void *buf_init(char *fname)$/;"	f
+buf_len	monitor.c	/^static int buf_len;$/;"	v	file:
+buffer	work.c	/^char *buffer[1024];$/;"	v
+find_task_by_pid	mp3_given.h	/^struct task_struct* find_task_by_pid(unsigned int nr)$/;"	f
+get_cpu_use	mp3_given.h	/^int get_cpu_use(int pid, unsigned long *min_flt, unsigned long *maj_flt,$/;"	f
+local_access	work.c	/^int local_access(int addr)$/;"	f
+main	monitor.c	/^int main(int argc, char* argv[])$/;"	f
+main	work.c	/^int main(int argc, char* argv[])$/;"	f
+msize	work.c	/^int msize;$/;"	v
+rand_access	work.c	/^void rand_access()$/;"	f
