@@ -10,9 +10,9 @@
 #include <asm-generic/param.h> // support for USER_HZ to translate the jiffies with mcroseconds
 #include <linux/sched.h> // for the task struct defination
 #include <asm-generic/uaccess.h> // copy from user, to user 
-#include <workqueue.h> 
+#include <linux/workqueue.h> 
 #include <linux/mm_types.h>
-#include <asm-generic/page.h> 
+// #include <asm-generic/page.h> 
 #include <linux/mm.h> // memory management
 
 MODULE_AUTHOR("GROUP_ID");
@@ -25,10 +25,10 @@ MODULE_DESCRIPTION("CS 423 MP2");
 */ 
 
 /* macro */
-#define debug(msg) (printk(KERN_DEBUG msg);)  // for notification macro
-#define alert(msg) (printk(KERN_ALERT msg);)  // for notification macro
-#define VM_SIZE (512000)											// virtual memory size, bytes 4 * 128 KB = >  32 K sample * 16 Bytes of the four unsigned long data
-#define VM_SAMPLE_SIZE (32000)								// sample size
+#define debug(msg) (printk(KERN_DEBUG msg))	// for notification macro
+#define alert(msg) (printk(KERN_ALERT msg))	// for notification macro
+#define VM_SIZE (512000)						// virtual memory size, bytes 4 * 128 KB = >  32 K sample * 16 Bytes of the four unsigned long data
+#define VM_SAMPLE_SIZE (32000)					// sample size
 #define SAMPLE_RATE 20
 
 /* global variable */
@@ -41,10 +41,10 @@ struct proc_dir_entry * dir;
 struct list_head HEAD;
 struct workqueue_struct * wq;
 struct delayed_work work;
-static unsigned long * vm; // 
+static unsigned long * vm; 
 static unsigned long DELAYED; // for delayed queue work
 static unsigned int USER_USE; // for counting char device open times
-static unsigned int USER_CONCURRENT`_LIMIT = 1; // for limit access to the driver
+static unsigned int USER_CONCURRENT_LIMIT = 1; // for limit access to the driver
 static unsigned int offset; // how many (unsgined long ) has been written into the sample
 static int BUFFER_FILLED_UP;
 
@@ -53,14 +53,14 @@ typedef struct mp3_task_struct ts_mp3;
 
 /* mp3 struct */
 struct mp3_task_struct{
-  struct task_struct * tsk;
-  struct list_head node;
-  // struct timer_list tm;
-  unsigned long utime; // user space cpu time
-  unsigned long stime; // system space cpu time
-  unsigned long minor_pf; // page fault
-  unsigned long major_pf; // IO page fault
-  pid_t pid;
+	struct task_struct * tsk;
+	struct list_head node;
+	// struct timer_list tm;
+	unsigned long utime; // user space cpu time
+	unsigned long stime; // system space cpu time
+	unsigned long minor_pf; // page fault
+	unsigned long major_pf; // IO page fault
+	pid_t pid;
 };
 
 /* iterate through list for ts_mp3 with target pid */
@@ -77,7 +77,7 @@ ts_mp3 * get_by_pid(int pid)
 }
 
 /* work callback, update cpu information for registered process */
-void workqueue_callback(work_struct * curr_work)
+void workqueue_callback(struct work_struct * curr_work)
 {
 	debug("[work callback] entered...\n");
 	if (BUFFER_FILLED_UP)
@@ -108,7 +108,7 @@ void workqueue_callback(work_struct * curr_work)
 	unsigned long * ptr = vm + offset;
 	for (index; index < 4; ++index)
 	{
-		* (ptr++) = tmp[index];
+		* (ptr++) = tmps[index];
 	}
 	
 	offset += 4;	
@@ -121,7 +121,7 @@ void workqueue_callback(work_struct * curr_work)
 }
 
 /* chr device callback functions*/
-int mymmap (struct file * inode, struct vm_area_struct * vma)
+int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 {
 	// map get mmap request from process, and map the user address to the kernel vm 
 	
@@ -138,13 +138,14 @@ int mymmap (struct file * inode, struct vm_area_struct * vma)
 	}
 	
 	// int size = vma->vm_pgoff << PAGE_SHIFT;
-	int size = vma->vm_end - vm_start; // little endian 
+	int size = vma->vm_end - vma->vm_start; // little endian 
 	if (remap_pfn_range(vma, vma->vm_start, p_addr, size, vma->vm_page_prot)) return -EAGAIN; // TODO error code declaration
 	return 0;
 }
 
 /* operation function for char device, device open */
-int myopen (struct inode *, struct file *)
+// TODO inode, file struct
+int myopen (struct inode * node, struct file * fp)
 {
 	if (USER_USE >= USER_CONCURRENT_LIMIT) return -1;
 	USER_USE++;
@@ -154,45 +155,45 @@ int myopen (struct inode *, struct file *)
 }
 
 /* operation function for char device, device close */
-int myrelease (struct inode *, struct file *){
+int myrelease (struct inode * node, struct file * fp){
 	USER_USE--;
 	module_put(THIS_MODULE);
-	return 0
-};
+	return 0;
+}
 
 /* */
 int reg_entry(int pid)
 {
-  printk(KERN_DEBUG "[reg entry] entered for %d...\n", pid);
+	printk(KERN_DEBUG "[reg entry] entered for %d...\n", pid);
 	
 	ts_mp3 * new_struct = kmalloc(sizeof(ts_mp3), GFP_KERNEL); // TODO replace with the kmemecache
 	new_struct->pid = pid;
 	new_struct->tsk = find_task_by_pid(pid); // replace with get_cpu_use(task_struct * )
 	if (!new_struct->tsk) return 1;
 	
-	list_add_tail(&node, &HEAD);
+	list_add_tail(&new_struct->node, &HEAD);
 
 	// init workqueue job
 	if (list_empty_careful(&HEAD))
 	{
 		// workqueue
 		// delayed work
-		INIT_DELAYED_WORK(work, workqueue_callback);
-		if (work)
-			if (queue_delayed_work(wq, work, DELAYED)) alert("failed with queue work...\n");
+		INIT_DELAYED_WORK(&work, workqueue_callback);
+		//if (work)
+		if (queue_delayed_work(wq, &work, DELAYED)) alert("failed with queue work...\n"); // TODO return value
 		else alert("failed with work init...\n");
 	}
-  return 0;
+	return 0;
 }
 
 
 /**/
 int unreg_entry(int pid)
 {
-  printk(KERN_DEBUG "[unreg entry] entered for %d...\n", pid);
+	printk(KERN_DEBUG "[unreg entry] entered for %d...\n", pid);
   
 	//remove entry from list
-	ts_mp3 * task = find_by_pid(pid);
+	ts_mp3 * task = get_by_pid(pid);
 	if (!task) 
 	{
 		alert("unreg entry failed, task struct with pid not found...\n");
@@ -201,7 +202,7 @@ int unreg_entry(int pid)
 
 	if (list_empty(&HEAD)) 
 	{	
-		cancel_delayed_work_sync(work);
+		cancel_delayed_work_sync(&work);
 	}
 
 	kfree(task);
@@ -220,43 +221,43 @@ static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_
 /* write callback, handle R and U requests */
 static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t len, loff_t * offset)
 {
-  debug("[Write Callback] triggered");
-  char buff[len+1];                                                                                     
-  buff[len] = 0;
-  int copied = copy_from_user(buff, userbuff, len);
-  if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
-      alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");
-  int pid = 0;
-  buff[strlen(buff)] = 0;
-  kstrtoint(buff+2, 10, &pid); // char *, int type, container 
-  char ops = buff[0];
+	debug("[Write Callback] triggered");
+	char buff[len+1];                                                                                     
+	buff[len] = 0;
+	int copied = copy_from_user(buff, userbuff, len);
+	if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
+		alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");
+	int pid = 0;
+	buff[strlen(buff)] = 0;
+	kstrtoint(buff+2, 10, &pid); // char *, int type, container 
+	char ops = buff[0];
 
-  if (pid == 0) 
-  {
-    alert("Failed with parse proc file input, please check your pid input...\n");
-    return len;
-  }
+	if (pid == 0) 
+	{
+		alert("Failed with parse proc file input, please check your pid input...\n");
+		return len;
+	}
 
-  switch (ops){
-    case 'R':
-      reg_entry(pid);
-      break;
-    case 'U':
-      unreg_entry(pid);
-      break;
-    default: 
-      alert("this should not happen.\n");
-  }
-  printk(KERN_DEBUG "Parsed input is: ops - %d; pid - %d", ops, pid);
-  printk(KERN_DEBUG "The input is %s \n", buff);
-  return len; // mywrite will finish normally without return 0
+	switch (ops){
+		case 'R':
+			reg_entry(pid);
+			break;
+		case 'U':
+			unreg_entry(pid);
+			break;
+		default: 
+			alert("this should not happen.\n");
+	}
+	printk(KERN_DEBUG "Parsed input is: ops - %d; pid - %d", ops, pid);
+	printk(KERN_DEBUG "The input is %s \n", buff);
+	return len; // mywrite will finish normally without return 0
 }
 
 // link function with proc file
 static struct file_operations f_ops = {
-  .owner=THIS_MODULE,
-  .read=myread,
-  .write=mywrite
+	.owner=THIS_MODULE,
+	.read=myread,
+	.write=mywrite
 };
 
 static struct file_operations f_ops_chrdev = {
@@ -272,18 +273,18 @@ int __init mp3_init(void)
   // set up proc file entry
   // kernel list_head init
   // callback _ file operation
-  alert("[MODULE LOADING]... \n");
-  proc_dir = "mp3";
-  proc_filename = "status";
-  dir = proc_mkdir(proc_dir, NULL);
-  fp = proc_create(proc_filename, 0666, dir, &f_ops);
-  if (!fp){
-    alert("File entry creation failed...\n");
-    proc_remove(dir);
-    return -ENOMEM;
-  }
-  printk(KERN_DEBUG "[init] list, slab, kernel thread\n current USER_HZ is %d...", USER_HZ);
-  INIT_LIST_HEAD(&HEAD);
+	alert("[MODULE LOADING]... \n");
+	proc_dir = "mp3";
+	proc_filename = "status";
+	dir = proc_mkdir(proc_dir, NULL);
+	fp = proc_create(proc_filename, 0666, dir, &f_ops);
+	if (!fp){
+		alert("File entry creation failed...\n");
+		proc_remove(dir);
+		return -ENOMEM;
+	}
+	printk(KERN_DEBUG "[init] list, slab, kernel thread\n current USER_HZ is %d...", USER_HZ);
+	INIT_LIST_HEAD(&HEAD);
   // init_slab();
 	// frequency => jiffies, 1/rate * 1000/100
 	DELAYED = ((double) 1/SAMPLE_RATE) * (1000/100);
@@ -292,13 +293,15 @@ int __init mp3_init(void)
 
 	// vmalloc
 	vm =(unsigned long *) vmalloc(VM_SIZE);
-	
+		
 	// character device initialization
-	if (register_chrdev(0, chrdev_name, f_ops_chrdev) < 0){
+	chrdev_name = "mp3";
+	
+	if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0){
 		alert("char device register fails...\n");	
 	}
 
-  return 0;
+	return 0;
 }
 
 
@@ -307,19 +310,19 @@ int __exit mp3_exit(void)
 {
   // stop all the thread which operate on the linked list
   // free all the memory on the heap 
-  alert("MODULE UNLOADING...\n");
-  proc_remove(fp);
-  proc_remove(dir);
-  debug("Proc file entry removed successfully!\n");
-	cancel_delayed_work_sync(work);
-  destroy_workqueue(wq);
+	alert("MODULE UNLOADING...\n");
+	proc_remove(fp);
+	proc_remove(dir);
+	debug("Proc file entry removed successfully!\n");
+	cancel_delayed_work_sync(&work);
+	destroy_workqueue(wq);
 	debug("Work and Workqueue removed successfully\n");
-	if (unregister(chrdev_major, chrdev_name) < 0) alert("char device unregistered unsuccessfully...\n");
+	unregister_chrdev(chrdev_major, chrdev_name);
 	vfree(vm);	
 	debug("VM freeed\n");
 
-  debug("successfully clean up all memory...\n");
-  return 0;
+	debug("successfully clean up all memory...\n");
+	return 0;
 }
 
 
