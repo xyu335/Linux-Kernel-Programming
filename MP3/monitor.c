@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
   int index = 0;
   int i;
 
-  // Open the char device and mmap()
+  // Open the char device and mmap(), device file name = node 
   buf = buf_init("node");
   if(!buf)
     return -1;
@@ -63,7 +63,8 @@ int main(int argc, char* argv[])
 
   // read four chunks of long data for all the samples
   // so there are exactly maximal 12000 integral samples 
-
+	// default value should be -1, to end the iteration through buffer 
+	// index = the first element that is the first element that is not -1. 
 
   // Read and print profiled data
   for(index=0; index<BUFD_MAX; index++)
