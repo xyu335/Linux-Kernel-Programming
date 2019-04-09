@@ -332,7 +332,7 @@ int __init mp3_init(void)
 
 	// character device initialization
 	chrdev_name = "mp3";
-	if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0) // TODO return value
+	if ((chrdev_major = register_chrdev(0, chrdev_name, &f_ops_chrdev)) < 0) // TODO return value
 	{
 		alert("char device register fails...\n");	
 	}

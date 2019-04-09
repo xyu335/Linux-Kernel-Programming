@@ -39,6 +39,7 @@ void *buf_init(char *fname)
   //void *mmap(void *addr, size_t lengthint " prot ", int " flags , int fd, off_t offset); 
   kadr = mmap(0, buf_len, PROT_READ|PROT_WRITE, MAP_SHARED, buf_fd, 0);
   if (kadr == MAP_FAILED){
+      close(buf_fd);
       printf("buf file open error.\n");
       return NULL;
   }
