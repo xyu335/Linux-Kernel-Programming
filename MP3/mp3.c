@@ -185,16 +185,17 @@ int reg_entry(int pid)
 	new_struct->tsk = find_task_by_pid(pid); // replace with get_cpu_use(task_struct * )
 	if (!new_struct->tsk) return 1;
 	
-	list_add_tail(&new_struct->node, &HEAD);
+	printk(KERN_DEBUG "finished init struct, new->tsk ptr: %p, check list size\n", new_struct->tsk);
 
 	// init workqueue job
-	if (list_empty_careful(&HEAD))
+	if (list_empty(&HEAD))
 	{
 		debug("create new delayed work since it is the first node in the list...\n");
 		INIT_DELAYED_WORK(&work, workqueue_callback);
 		//if (work) 
 		if (queue_delayed_work(wq, &work, DELAYED)) alert("failed with queue work...\n"); // TODO return value and the return of work init
 	}
+	list_add_tail(&new_struct->node, &HEAD);
 	return 0;
 }
 
