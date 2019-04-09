@@ -1,13 +1,15 @@
 #include <stdio.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include <stdio.h>
+#include <stdio.h> // f related 
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <time.h>
+#include <string.h> 
 
 #define NPAGES (128)   // The size of profiler buffer (Unit: memory page)
 #define BUFD_MAX 48000 // The max number of profiled samples stored in the profiler buffer
@@ -15,6 +17,7 @@
 
 static int buf_fd = -1;
 static int buf_len;
+static char * output_file; 
 
 // This function opens a character device (which is pointed by a file named as fname) and performs the mmap() operation. If the operations are successful, the base address of memory mapped buffer is returned. Otherwise, a NULL pointer is returned.
 void *buf_init(char *fname)
@@ -54,6 +57,14 @@ int main(int argc, char* argv[])
   long *buf;
   int index = 0;
   int i;
+
+  char * str = "output-";
+  time_t tm;
+  time(&tm);
+  
+  char * date = ctime(&tm);
+  output_file = strncat(str,date, 40);
+  printf("output_filename is %s. Check that after the program finished.\n", output_file);
 
   // Open the char device and mmap(), device file name = node 
   buf = buf_init("node");

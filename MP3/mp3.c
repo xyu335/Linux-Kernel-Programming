@@ -190,10 +190,10 @@ int reg_entry(int pid)
 	// init workqueue job
 	if (list_empty_careful(&HEAD))
 	{
+		debug("create new delayed work since it is the first node in the list...\n");
 		INIT_DELAYED_WORK(&work, workqueue_callback);
-		//if (work)
-		if (queue_delayed_work(wq, &work, DELAYED)) alert("failed with queue work...\n"); // TODO return value
-		else alert("failed with work init...\n");
+		//if (work) 
+		if (queue_delayed_work(wq, &work, DELAYED)) alert("failed with queue work...\n"); // TODO return value and the return of work init
 	}
 	return 0;
 }
@@ -226,7 +226,16 @@ int unreg_entry(int pid)
 static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_t * offset) 
 {
 	// read is not used in this mp
-	return 0;
+	if (*offset > 0) return 0;
+	unsigned long * ptr = (unsigned long * ) vm;
+	char buff[256] = {0};
+	sprintf(buff, "first four elements: %ld, %ld, %ld, %ld\n", ptr, ptr+1, ptr+2, ptr+3);
+	int length = strlen(buff);
+
+	unsigned long copied = copy_to_user(userbuff, vm, length + 1);
+	
+	*offset += (length + 1);
+	return copied;
 }
 
 
@@ -265,7 +274,7 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 		default: 
 			alert("this should not happen.\n");
 	}
-	printk(KERN_DEBUG "Parsed input is: ops - %d; pid - %d", ops, pid);
+	// printk(KERN_DEBUG "Parsed input is: ops - %d; pid - %d", ops, pid);
 	printk(KERN_DEBUG "The input is %s \n", buff);
 	return len; // mywrite will finish normally without return 0
 }
