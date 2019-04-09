@@ -42,7 +42,7 @@ struct proc_dir_entry * dir;
 struct list_head HEAD;
 struct workqueue_struct * wq;
 struct delayed_work work;
-static unsigned long * vm; 
+static char * vm; 
 static unsigned long DELAYED; // for delayed queue work
 static unsigned int USER_USE; // for counting char device open times
 static unsigned int USER_CONCURRENT_LIMIT = 1; // for limit access to the driver
@@ -106,14 +106,14 @@ void workqueue_callback(struct work_struct * curr_work)
 	
 	// print to the vm space 
 	// sprintf(vm + offset, tmps)
-	unsigned long * ptr = vm + offset;
+	unsigned long * ptr =(unsigned long *)  vm + offset;
 	for (index; index < 4; ++index)
 	{
 		* (ptr++) = tmps[index];
 	}
 	
 	offset += 4;	
-	if (offset >= VM_SAMPLE_SIZE * 4) 
+	if (offset >= VM_ELEMENT_SIZE) //if the element offset < SIZE, append 4 elements to tail   
 	{
 		BUFFER_FILLED_UP = 1;
 	}
@@ -138,13 +138,12 @@ int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 	
 	unsigned long p_addr = NULL;
 	unsigned long assigned_size = 0; 
-	
-	unsigned long total_size = vma->end - vma->start;
+	unsigned long total_size = vma->vm_end - vma->vm_start;
 	
 	while (assigned_size < VM_SIZE && assigned_size < total_size) 
 	{
 		// get the physical addr
-		unsigned long p_addr = vmalloc_to_pfn(vm);
+		unsigned long p_addr = vmalloc_to_pfn((char *) vm + assigned_size);
 		// remap
 		if (!p_addr) return -1;
 		if (remap_pfn_range(vma, vma->vm_start + assigned_size, p_addr, PAGE_SIZE, vma->vm_page_prot)) 
@@ -152,6 +151,7 @@ int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 			printk("error occurred during remapping...\n");
 			return -1; // TODO error code declaration
 		}
+		assigned_size += PAGE_SIZE; // update offset
 	}
 
 	return 0;
@@ -190,8 +190,6 @@ int reg_entry(int pid)
 	// init workqueue job
 	if (list_empty_careful(&HEAD))
 	{
-		// workqueue
-		// delayed work
 		INIT_DELAYED_WORK(&work, workqueue_callback);
 		//if (work)
 		if (queue_delayed_work(wq, &work, DELAYED)) alert("failed with queue work...\n"); // TODO return value
@@ -259,10 +257,10 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 
 	switch (ops){
 		case 'R':
-			// reg_entry(pid);
+			reg_entry(pid);
 			break;
 		case 'U':
-			// unreg_entry(pid);
+			unreg_entry(pid);
 			break;
 		default: 
 			alert("this should not happen.\n");
@@ -304,29 +302,23 @@ int __init mp3_init(void)
 	}
 	printk(KERN_DEBUG "[init] list, slab, kernel thread\n current USER_HZ is %d...", USER_HZ);
 	INIT_LIST_HEAD(&HEAD);
-  // init_slab();
-	// frequency => jiffies, 1/rate * 1000/100, 1/20 * 10 = 0.05s * 10 = 0.5 jiffies. unsigned long interval 
-
+	// init_slab();
+	BUFFER_FILLED_UP = 0;
 	// DELAYED = ((double) 1/SAMPLE_RATE) /  ((double) 1/ USER_HZ);
 	DELAYED = (USER_HZ / SAMPLE_RATE); //jiffies
 	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED); 
-	// wq = create_workqueue("mp3");
-
-
-
-
-
-
+	wq = create_workqueue("mp3");
 
 	// vmalloc
-	// vm =(unsigned long *) vmalloc(VM_SIZE);
+	vm =(char * ) vmalloc(VM_SIZE);
 		
 	// character device initialization
 	chrdev_name = "mp3";
 	
-	// if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0){
-	//	alert("char device register fails...\n");	
-	// }
+	if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0)
+	{
+		alert("char device register fails...\n");	
+	}
 
 	return 0;
 }
@@ -342,10 +334,10 @@ int __exit mp3_exit(void)
 	proc_remove(dir);
 	debug("Proc file entry removed successfully!\n");
 	cancel_delayed_work_sync(&work); // TODO return value if work is already canceled
-	// destroy_workqueue(wq);
+	destroy_workqueue(wq);
 	debug("Work and Workqueue removed successfully\n");
-	// unregister_chrdev(chrdev_major, chrdev_name);
-	// vfree(vm);	
+	unregister_chrdev(chrdev_major, chrdev_name);
+	vfree(vm);	
 	debug("VM freeed\n");
 
 	debug("successfully clean up all memory...\n");
