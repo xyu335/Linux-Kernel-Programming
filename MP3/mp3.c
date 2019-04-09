@@ -9,11 +9,11 @@
 #include <linux/vmalloc.h> // vmalloc interface
 #include <asm-generic/param.h> // support for USER_HZ to translate the jiffies with mcroseconds
 #include <linux/sched.h> // for the task struct defination
-#include <asm-generic/uaccess.h> // copy from user, to user 
 #include <linux/workqueue.h> 
 #include <linux/mm_types.h>
 // #include <asm-generic/page.h> 
 #include <linux/mm.h> // memory management
+#include <linux/uaccess.h> // copy from user, to user 
 
 MODULE_AUTHOR("GROUP_ID");
 MODULE_LICENSE("GPL");
@@ -29,6 +29,7 @@ MODULE_DESCRIPTION("CS 423 MP2");
 #define alert(msg) (printk(KERN_ALERT msg))	// for notification macro
 #define VM_SIZE (512000)						// virtual memory size, bytes 4 * 128 KB = >  32 K sample * 16 Bytes of the four unsigned long data
 #define VM_SAMPLE_SIZE (32000)					// sample size
+#define VM_ELEMENT_SIZE (128000) 				// unsigned long element size
 #define SAMPLE_RATE 20
 
 /* global variable */
@@ -117,6 +118,8 @@ void workqueue_callback(struct work_struct * curr_work)
 		BUFFER_FILLED_UP = 1;
 	}
 	else * (ptr) = -1; // termination
+	
+	queue_delayed_work(wq, &work, DELAYED); // queue again 
 	return; 	
 }
 
@@ -130,16 +133,27 @@ int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 	 * 			unsigned long pfn, unsigned long size, pgprot_t);
 	 * pfn: physical memory address
 	 * */
-	unsigned long p_addr = vmalloc_to_pfn(vm);
-	if (!p_addr) 
-	{
-		alert("mapping to physical memory failed...\n");
-		return -1; // TODO return numer not sure
-	}
+
+	/* iterate through vm and map each page size to the physical memory */
 	
-	// int size = vma->vm_pgoff << PAGE_SHIFT;
-	int size = vma->vm_end - vma->vm_start; // little endian 
-	if (remap_pfn_range(vma, vma->vm_start, p_addr, size, vma->vm_page_prot)) return -EAGAIN; // TODO error code declaration
+	unsigned long p_addr = NULL;
+	unsigned long assigned_size = 0; 
+	
+	unsigned long total_size = vma->end - vma->start;
+	
+	while (assigned_size < VM_SIZE && assigned_size < total_size) 
+	{
+		// get the physical addr
+		unsigned long p_addr = vmalloc_to_pfn(vm);
+		// remap
+		if (!p_addr) return -1;
+		if (remap_pfn_range(vma, vma->vm_start + assigned_size, p_addr, PAGE_SIZE, vma->vm_page_prot)) 
+		{
+			printk("error occurred during remapping...\n");
+			return -1; // TODO error code declaration
+		}
+	}
+
 	return 0;
 }
 
@@ -221,9 +235,10 @@ static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_
 /* write callback, handle R and U requests */
 static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t len, loff_t * offset)
 {
-	debug("[Write Callback] triggered, len of the write buffer: %d\n", len);
+	printk(KERN_DEBUG "[Write Callback] triggered, len of the write buffer: %d\n", len);
 	char buff[len+1];                                                                                     
 	buff[len] = 0;
+
 	int copied = copy_from_user(buff, userbuff, len); 
 	printk(KERN_DEBUG "%d bytes copied from user space...\n");
 	if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
@@ -289,9 +304,9 @@ int __init mp3_init(void)
 	INIT_LIST_HEAD(&HEAD);
   // init_slab();
 	// frequency => jiffies, 1/rate * 1000/100, 1/20 * 10 = 0.05s * 10 = 0.5 jiffies. unsigned long interval 
-	// DELAYED = ((double) 1/SAMPLE_RATE) * (1000/100);
-	DELAYED = 100L;
-	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED); // TODO replace it with normal
+	// DELAYED = ((double) 1/SAMPLE_RATE) /  ((double) 1/ USER_HZ);
+	DELAYED = (USER_HZ / SAMPLE_RATE); //jiffies
+	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED); 
 	wq = create_workqueue("mp3");
 
 	// vmalloc
