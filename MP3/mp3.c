@@ -221,7 +221,7 @@ static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_
 /* write callback, handle R and U requests */
 static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t len, loff_t * offset)
 {
-	debug("[Write Callback] triggered, len of the write buffer: %d\n", len);
+	printk(KERN_DEBUG "[Write Callback] triggered, len of the write buffer: %d\n", len);
 	char buff[len+1];                                                                                     
 	buff[len] = 0;
 	
@@ -321,7 +321,7 @@ int __exit mp3_exit(void)
 	proc_remove(fp);
 	proc_remove(dir);
 	debug("Proc file entry removed successfully!\n");
-	if (work != NULL) cancel_delayed_work_sync(&work);
+	cancel_delayed_work_sync(&work); // TODO return value if work is already canceled
 	// destroy_workqueue(wq);
 	debug("Work and Workqueue removed successfully\n");
 	// unregister_chrdev(chrdev_major, chrdev_name);
