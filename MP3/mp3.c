@@ -221,10 +221,11 @@ static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_
 /* write callback, handle R and U requests */
 static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t len, loff_t * offset)
 {
-	debug("[Write Callback] triggered");
+	debug("[Write Callback] triggered, len of the write buffer: %d\n", len);
 	char buff[len+1];                                                                                     
 	buff[len] = 0;
-	int copied = copy_from_user(buff, userbuff, len);
+	int copied = copy_from_user(buff, userbuff, len); 
+	printk(KERN_DEBUG "%d bytes copied from user space...\n");
 	if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
 		alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");	
 	int pid = 0;
@@ -233,7 +234,7 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 	kstrtoint(buff+2, 10, &pid); // char *, int type, container 
 	char ops = buff[0];
 
-	if (pid == 0) 
+	if (pid == 0 || pid < 0) 
 	{
 		alert("Failed with parse proc file input, please check your pid input...\n");
 		return len;
