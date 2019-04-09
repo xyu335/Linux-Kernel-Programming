@@ -58,12 +58,23 @@ int main(int argc, char* argv[])
   int index = 0;
   int i;
 
+  char buff[2048] = {0};
   char * str = "output-";
+  strncpy(buff, str, strlen(str));
   time_t tm;
   time(&tm);
   
-  char * date = ctime(&tm);
-  output_file = strncat(str,date, 40);
+  char * timeinfo = ctime(&tm);
+  
+  char * time = strtok(timeinfo, " ");
+  while (time) 
+  {
+	// printf("%s \n", time);
+	if (strlen(time) > 6) break;
+	time = strtok(NULL, " ");
+  }
+
+  output_file = strncat(buff,time, 40);
   printf("output_filename is %s. Check that after the program finished.\n", output_file);
 
   // Open the char device and mmap(), device file name = node 
