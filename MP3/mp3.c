@@ -14,6 +14,7 @@
 // #include <asm-generic/page.h> 
 #include <linux/mm.h> // memory management, mapping funcs
 #include <linux/uaccess.h> // copy from user, to user zz
+#include <linux/spinlock.h>
 
 MODULE_AUTHOR("GROUP_ID");
 MODULE_LICENSE("GPL");
@@ -48,6 +49,7 @@ static unsigned int USER_USE; // for counting char device open times
 static unsigned int USER_CONCURRENT_LIMIT = 1; // for limit access to the driver
 static unsigned int offset; // how many (unsgined long ) has been written into the sample
 static int BUFFER_FILLED_UP;
+spinlock_t lock;
 
 /* type macro */
 typedef struct mp3_task_struct ts_mp3; 
@@ -70,10 +72,12 @@ ts_mp3 * get_by_pid(int pid)
 	if (list_empty(&HEAD)) return NULL;
 	ts_mp3 * itr = NULL;
 	ts_mp3 * tmp = NULL;
+	spin_lock(&lock);
 	list_for_each_entry_safe(itr, tmp, &HEAD, node)
 	{
 		if (itr->pid == pid) return itr;
 	}
+	spin_unlock(&lock);
 	return NULL;
 }
 
@@ -92,6 +96,7 @@ void workqueue_callback(struct work_struct * curr_work)
 	
 	unsigned long tmps[4] = {};
 	int index = 0;
+	spin_lock(&lock);
 	list_for_each_entry_safe(itr, tmp, &HEAD, node)
 	{
 		// update pf, utime, into the ts_mp3 struct
@@ -103,7 +108,7 @@ void workqueue_callback(struct work_struct * curr_work)
 		tmps[3]+=itr->stime;	
 		// printk(KERN_DEBUG "update session, offset: %d , minor: %ld, major: %ld, utime: %ld, stime: %ld\n", offset, itr->minor_pf, itr->major_pf, itr->utime, itr->stime);
 	}
-	
+	spin_unlock(&lock);
 	// print to the vm space 
 	// sprintf(vm + offset, tmps)
 	unsigned long * ptr =(unsigned long *)  vm + offset;
@@ -200,7 +205,8 @@ int reg_entry(int pid)
 	if (!new_struct->tsk) return 1;
 	
 	printk(KERN_DEBUG "finished init struct, new->tsk ptr: %p, check list size\n", new_struct->tsk);
-
+	
+	spin_lock(&lock);
 	// init workqueue job
 	if (list_empty(&HEAD))
 	{
@@ -210,6 +216,7 @@ int reg_entry(int pid)
 		if (queue_delayed_work(wq, &work, DELAYED)) alert("failed with queue work...\n"); // TODO return value and the return of work init
 	}
 	list_add_tail(&new_struct->node, &HEAD);
+	spin_unlock(&lock);
 	return 0;
 }
 
@@ -226,14 +233,15 @@ int unreg_entry(int pid)
 		alert("unreg entry failed, task struct with pid not found...\n");
 		return 0;
 	}
+	spin_lock(&lock);
 	list_del(&task->node);
 
 	if (list_empty(&HEAD)) 
 	{	
 		cancel_delayed_work_sync(&work);
 	}
-
 	kfree(task);
+	spin_unlock(&lock);
 	debug("unregister finished\n");
 	return 0;
 }
@@ -340,6 +348,9 @@ int __init mp3_init(void)
 	// vmalloc
 	vm =(char * ) vmalloc(VM_SIZE); //TODO PG_reserved
 	printk(KERN_DEBUG "Profiler buffer is assigned, vm ptr: %p\n", vm);
+	
+	// spinlock init
+	spin_lock_init(&lock);
 
 	// character device initialization
 	chrdev_name = "mp3";
@@ -358,6 +369,7 @@ int __exit mp3_exit(void)
   // stop all the thread which operate on the linked list
   // free all the memory on the heap 
 	alert("MODULE UNLOADING...\n");
+	spin_lock(&lock);
 	proc_remove(fp);
 	proc_remove(dir);
 	debug("Proc file entry removed successfully!\n");
@@ -365,9 +377,10 @@ int __exit mp3_exit(void)
 	destroy_workqueue(wq);
 	debug("Work and Workqueue removed successfully\n");
 	unregister_chrdev(chrdev_major, chrdev_name);
-	vfree(vm);	
+	vfree(vm);
+	spin_unlock(&lock);
 	debug("VM freeed\n");
-
+	// lock => global var
 	debug("successfully clean up all memory...\n");
 	return 0;
 }
