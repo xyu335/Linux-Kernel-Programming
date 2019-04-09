@@ -226,9 +226,10 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 	buff[len] = 0;
 	int copied = copy_from_user(buff, userbuff, len);
 	if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
-		alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");
+		alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");	
 	int pid = 0;
 	buff[strlen(buff)] = 0;
+	printk(KERN_DEBUG "Raw input: %s\n", buff);
 	kstrtoint(buff+2, 10, &pid); // char *, int type, container 
 	char ops = buff[0];
 
@@ -240,10 +241,10 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 
 	switch (ops){
 		case 'R':
-			reg_entry(pid);
+			// reg_entry(pid);
 			break;
 		case 'U':
-			unreg_entry(pid);
+			// unreg_entry(pid);
 			break;
 		default: 
 			alert("this should not happen.\n");
@@ -286,9 +287,10 @@ int __init mp3_init(void)
 	printk(KERN_DEBUG "[init] list, slab, kernel thread\n current USER_HZ is %d...", USER_HZ);
 	INIT_LIST_HEAD(&HEAD);
   // init_slab();
-	// frequency => jiffies, 1/rate * 1000/100
-	DELAYED = ((double) 1/SAMPLE_RATE) * (1000/100);
-	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED);
+	// frequency => jiffies, 1/rate * 1000/100, 1/20 * 10 = 0.05s * 10 = 0.5 jiffies. unsigned long interval 
+	// DELAYED = ((double) 1/SAMPLE_RATE) * (1000/100);
+	DELAYED = 100L;
+	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED); // TODO replace it with normal
 	wq = create_workqueue("mp3");
 
 	// vmalloc
