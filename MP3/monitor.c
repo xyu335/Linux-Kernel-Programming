@@ -28,11 +28,14 @@ void *buf_init(char *fname)
     buf_len = NPAGES * getpagesize();
   
   // SYNC flag for open
+  printf("try to open the char dev - node file..\n");
   if ((buf_fd=open(fname, O_RDWR|O_SYNC))<0){
+  // if ((buf_fd=open(fname, O_RDONLY|O_SYNC))<0){
         printf("file open error. %s\n", fname);
         return NULL;
     }
   }
+
   //void *mmap(void *addr, size_t lengthint " prot ", int " flags , int fd, off_t offset); 
   kadr = mmap(0, buf_len, PROT_READ|PROT_WRITE, MAP_SHARED, buf_fd, 0);
   if (kadr == MAP_FAILED){

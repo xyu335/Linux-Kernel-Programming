@@ -80,7 +80,7 @@ ts_mp3 * get_by_pid(int pid)
 /* work callback, update cpu information for registered process */
 void workqueue_callback(struct work_struct * curr_work)
 {
-	debug("[work callback] entered...\n");
+	printk(KERN_DEBUG "[work callback] entered..., current offset: %d\n", offset);
 	if (BUFFER_FILLED_UP)
 	{
 		alert("Profiler buffer used up...\n");
@@ -101,7 +101,7 @@ void workqueue_callback(struct work_struct * curr_work)
 		tmps[1]+=itr->major_pf;
 		tmps[2]+=itr->utime;
 		tmps[3]+=itr->stime;	
-		printk(KERN_DEBUG "update for pid: %d, minor: %ld, major: %ld\n", itr->pid, itr->minor_pf, itr->major_pf);
+		// printk(KERN_DEBUG "update for pid: %d, minor: %ld, major: %ld, utime: %ld, stime: %ld\n", itr->pid, itr->minor_pf, itr->major_pf, itr->utime, itr->stime);
 	}
 	
 	// print to the vm space 
@@ -115,6 +115,7 @@ void workqueue_callback(struct work_struct * curr_work)
 	offset += 4;	
 	if (offset >= VM_ELEMENT_SIZE) //if the element offset < SIZE, append 4 elements to tail   
 	{
+		printk(KERN_ALERT "VM_ELEMENT_SIZE is reached, buffer is filled up...\n");
 		BUFFER_FILLED_UP = 1;
 	}
 	else * (ptr) = -1; // termination
@@ -161,17 +162,22 @@ int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 // TODO inode, file struct
 int myopen (struct inode * node, struct file * fp)
 {
-	if (USER_USE >= USER_CONCURRENT_LIMIT) return -1;
+	/*if (USER_USE >= USER_CONCURRENT_LIMIT) return -1;
 	USER_USE++;
 		
 	try_module_get(THIS_MODULE);
+	return 0;
+	*/
 	return 0;
 }
 
 /* operation function for char device, device close */
 int myrelease (struct inode * node, struct file * fp){
+	/*
 	USER_USE--;
 	module_put(THIS_MODULE);
+	return 0;
+	*/
 	return 0;
 }
 
@@ -210,6 +216,7 @@ int unreg_entry(int pid)
 	if (!task) 
 	{
 		alert("unreg entry failed, task struct with pid not found...\n");
+		return 0;
 	}
 	list_del(&task->node);
 
@@ -320,12 +327,12 @@ int __init mp3_init(void)
 	wq = create_workqueue("mp3");
 
 	// vmalloc
-	vm =(char * ) vmalloc(VM_SIZE);
-		
+	vm =(char * ) vmalloc(VM_SIZE); //TODO PG_reserved
+	printk(KERN_DEBUG "Profiler buffer is assigned, vm ptr: %p\n", vm);
+
 	// character device initialization
 	chrdev_name = "mp3";
-	
-	if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0)
+	if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0) // TODO return value
 	{
 		alert("char device register fails...\n");	
 	}
