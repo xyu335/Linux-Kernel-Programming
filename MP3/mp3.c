@@ -238,11 +238,13 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 	printk(KERN_DEBUG "[Write Callback] triggered, len of the write buffer: %d\n", len);
 	char buff[len+1];                                                                                     
 	buff[len] = 0;
-
-	int copied = copy_from_user(buff, userbuff, len); 
-	printk(KERN_DEBUG "%d bytes copied from user space...\n");
+	long copied = copy_from_user(buff, userbuff, len); 
+	printk(KERN_DEBUG "%d bytes copied from user space...\n", copied);
 	if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
+	{	
 		alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");	
+		return len;
+	}
 	int pid = 0;
 	buff[strlen(buff)] = 0;
 	printk(KERN_DEBUG "Raw input: %s\n", buff);
@@ -304,20 +306,27 @@ int __init mp3_init(void)
 	INIT_LIST_HEAD(&HEAD);
   // init_slab();
 	// frequency => jiffies, 1/rate * 1000/100, 1/20 * 10 = 0.05s * 10 = 0.5 jiffies. unsigned long interval 
+
 	// DELAYED = ((double) 1/SAMPLE_RATE) /  ((double) 1/ USER_HZ);
 	DELAYED = (USER_HZ / SAMPLE_RATE); //jiffies
 	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED); 
-	wq = create_workqueue("mp3");
+	// wq = create_workqueue("mp3");
+
+
+
+
+
+
 
 	// vmalloc
-	vm =(unsigned long *) vmalloc(VM_SIZE);
+	// vm =(unsigned long *) vmalloc(VM_SIZE);
 		
 	// character device initialization
 	chrdev_name = "mp3";
 	
-	if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0){
-		alert("char device register fails...\n");	
-	}
+	// if (register_chrdev(0, chrdev_name, &f_ops_chrdev) < 0){
+	//	alert("char device register fails...\n");	
+	// }
 
 	return 0;
 }
@@ -332,11 +341,11 @@ int __exit mp3_exit(void)
 	proc_remove(fp);
 	proc_remove(dir);
 	debug("Proc file entry removed successfully!\n");
-	cancel_delayed_work_sync(&work);
-	destroy_workqueue(wq);
+	cancel_delayed_work_sync(&work); // TODO return value if work is already canceled
+	// destroy_workqueue(wq);
 	debug("Work and Workqueue removed successfully\n");
-	unregister_chrdev(chrdev_major, chrdev_name);
-	vfree(vm);	
+	// unregister_chrdev(chrdev_major, chrdev_name);
+	// vfree(vm);	
 	debug("VM freeed\n");
 
 	debug("successfully clean up all memory...\n");
