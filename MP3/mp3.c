@@ -3,17 +3,17 @@
 
 #include "mp3_given.h"
 #include <linux/proc_fs.h> // fs include proc_create
-#include <linux/fs.h>  // fs include file_operaion
+#include <linux/fs.h>  // fs include file_operaion, chrdev reg&unreg
 #include <linux/list.h>  // list
 #include <linux/slab.h> // kmem allocator
 #include <linux/vmalloc.h> // vmalloc interface
 #include <asm-generic/param.h> // support for USER_HZ to translate the jiffies with mcroseconds
 #include <linux/sched.h> // for the task struct defination
 #include <linux/workqueue.h> 
-#include <linux/mm_types.h>
+#include <linux/mm_types.h> // PAGE_SIZE, PAGE_SHIFT
 // #include <asm-generic/page.h> 
-#include <linux/mm.h> // memory management
-#include <linux/uaccess.h> // copy from user, to user 
+#include <linux/mm.h> // memory management, mapping funcs
+#include <linux/uaccess.h> // copy from user, to user zz
 
 MODULE_AUTHOR("GROUP_ID");
 MODULE_LICENSE("GPL");
@@ -101,7 +101,7 @@ void workqueue_callback(struct work_struct * curr_work)
 		tmps[1]+=itr->major_pf;
 		tmps[2]+=itr->utime;
 		tmps[3]+=itr->stime;	
-		// printk(KERN_DEBUG "update for pid: %d, minor: %ld, major: %ld, utime: %ld, stime: %ld\n", itr->pid, itr->minor_pf, itr->major_pf, itr->utime, itr->stime);
+		// printk(KERN_DEBUG "update session, offset: %d , minor: %ld, major: %ld, utime: %ld, stime: %ld\n", offset, itr->minor_pf, itr->major_pf, itr->utime, itr->stime);
 	}
 	
 	// print to the vm space 
@@ -109,9 +109,16 @@ void workqueue_callback(struct work_struct * curr_work)
 	unsigned long * ptr =(unsigned long *)  vm + offset;
 	for (index; index < 4; ++index)
 	{
-		* (ptr++) = tmps[index];
+		if (offset >= 4) *(ptr) = tmps[index] + *(ptr-4); // cumulative value 
+		else * (ptr) = tmps[index];
+		ptr++;
 	}
-	
+
+/*	// debug
+	index = 0;
+	ptr = (unsigned long *) vm + offset;
+	printk(KERN_DEBUG "offset==%d, %ld, %ld, %ld, %ld\t", offset, *(ptr+0), *(ptr+1), *(ptr+2), *(ptr+3)); 
+*/	
 	offset += 4;	
 	if (offset >= VM_ELEMENT_SIZE) //if the element offset < SIZE, append 4 elements to tail   
 	{
@@ -136,11 +143,11 @@ int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 	 * */
 
 	/* iterate through vm and map each page size to the physical memory */
-	
+		
 	unsigned long p_addr = NULL;
 	unsigned long assigned_size = 0; 
 	unsigned long total_size = vma->vm_end - vma->vm_start;
-	
+	printk(KERN_DEBUG "[MMAP callback] mmap is called from userspace, total size requested is %lu, PAGE_SIZE is %d\n", total_size, PAGE_SIZE);
 	while (assigned_size < VM_SIZE && assigned_size < total_size) 
 	{
 		// get the physical addr
@@ -154,7 +161,8 @@ int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 		}
 		assigned_size += PAGE_SIZE; // update offset
 	}
-
+	
+	printk(KERN_DEBUG "assigned_size is %lu\n", assigned_size);
 	return 0;
 }
 
@@ -253,8 +261,10 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 	printk(KERN_DEBUG "[Write Callback] triggered, len of the write buffer: %d\n", len);
 	char buff[len+1];                                                                                     
 	buff[len] = 0;
-	long copied = copy_from_user(buff, userbuff, len); 
-	printk(KERN_DEBUG "%d bytes copied from user space...\n", copied);
+	copy_from_user(buff, userbuff, len);  // return 0 normally, clarified in __copy_from_user
+	/* any arch with MMU should ovverride the method 
+		in /arch/x86/include/asm/uaccess.h
+	*/
 	if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
 	{	
 		alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");	
@@ -321,6 +331,7 @@ int __init mp3_init(void)
 	INIT_LIST_HEAD(&HEAD);
 	// init_slab();
 	BUFFER_FILLED_UP = 0;
+	offset = 0;
 	// DELAYED = ((double) 1/SAMPLE_RATE) /  ((double) 1/ USER_HZ);
 	DELAYED = (USER_HZ / SAMPLE_RATE); //jiffies
 	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED); 
