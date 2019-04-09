@@ -19,9 +19,9 @@ MODULE_AUTHOR("GROUP_ID");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CS 423 MP2");
 
-/* #define container_of(ptr, type, member) ({                      \
-		        const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
-		        (type *)( (char *)__mptr - offsetof(type,member) );}) // for manuly use, refernce
+/* #define container_of(ptr, type, member) ({            \
+  const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+  (type *)( (char *)__mptr - offsetof(type,member) );}) // for manuly use, refernce
 */ 
 
 /* macro */
