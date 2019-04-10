@@ -115,5 +115,6 @@ int main(int argc, char* argv[])
   // 5. Unregister itself to stop the profiling
   sprintf(cmd, "echo 'U %u'>//proc/mp3/status", mypid);
   system(cmd);
+  return 0;
 }
 

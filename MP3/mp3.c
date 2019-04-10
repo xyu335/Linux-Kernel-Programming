@@ -72,12 +72,10 @@ ts_mp3 * get_by_pid(int pid)
 	if (list_empty(&HEAD)) return NULL;
 	ts_mp3 * itr = NULL;
 	ts_mp3 * tmp = NULL;
-	spin_lock(&lock);
 	list_for_each_entry_safe(itr, tmp, &HEAD, node)
 	{
 		if (itr->pid == pid) return itr;
 	}
-	spin_unlock(&lock);
 	return NULL;
 }
 
@@ -106,9 +104,8 @@ void workqueue_callback(struct work_struct * curr_work)
 		tmps[1]+=itr->major_pf;
 		tmps[2]+=itr->utime;
 		tmps[3]+=itr->stime;	
-		// printk(KERN_DEBUG "update session, offset: %d , minor: %ld, major: %ld, utime: %ld, stime: %ld\n", offset, itr->minor_pf, itr->major_pf, itr->utime, itr->stime);
 	}
-	spin_unlock(&lock);
+	printk(KERN_DEBUG "update session, offset: %d, minor: %ld, major: %ld, utime: %ld, stime: %ld\n", offset, tmps[0], tmps[1], tmps[2], tmps[3]);
 	// print to the vm space 
 	// sprintf(vm + offset, tmps)
 	unsigned long * ptr =(unsigned long *)  vm + offset;
@@ -131,8 +128,9 @@ void workqueue_callback(struct work_struct * curr_work)
 		BUFFER_FILLED_UP = 1;
 	}
 	else * (ptr) = -1; // termination
-	
+	// TODO, need for locking the virtual memory part.	
 	queue_delayed_work(wq, &work, DELAYED); // queue again 
+	spin_unlock(&lock);
 	return; 	
 }
 
@@ -227,13 +225,13 @@ int unreg_entry(int pid)
 	printk(KERN_DEBUG "[unreg entry] entered for %d...\n", pid);
   
 	//remove entry from list
+	spin_lock(&lock);
 	ts_mp3 * task = get_by_pid(pid);
 	if (!task) 
 	{
 		alert("unreg entry failed, task struct with pid not found...\n");
 		return 0;
 	}
-	spin_lock(&lock);
 	list_del(&task->node);
 
 	if (list_empty(&HEAD)) 
