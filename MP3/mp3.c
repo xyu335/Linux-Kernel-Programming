@@ -82,7 +82,7 @@ ts_mp3 * get_by_pid(int pid)
 /* work callback, update cpu information for registered process */
 void workqueue_callback(struct work_struct * curr_work)
 {
-	printk(KERN_DEBUG "[work callback] entered..., current offset: %d\n", offset);
+	printk(KERN_DEBUG "[work callback] entered..., current offset: %d, jiffiy: %lu\n", offset, jiffies);
 	if (BUFFER_FILLED_UP)
 	{
 		alert("Profiler buffer used up...\n");
