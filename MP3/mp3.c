@@ -1,6 +1,5 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
-
 #include "mp3_given.h"
 #include <linux/proc_fs.h> // fs include proc_create
 #include <linux/fs.h>  // fs include file_operaion, chrdev reg&unreg
@@ -88,17 +87,14 @@ void workqueue_callback(struct work_struct * curr_work)
 		alert("Profiler buffer used up...\n");
 		return;
 	}
-
 	ts_mp3 * itr = NULL;
 	ts_mp3 * tmp = NULL;
-	
 	unsigned long tmps[4] = {};
 	int index = 0;
 	spin_lock(&lock);
 	list_for_each_entry_safe(itr, tmp, &HEAD, node)
 	{
 		// update pf, utime, into the ts_mp3 struct
-		// copy it to the shared memory
 		get_cpu_use(itr->pid, &itr->minor_pf, &itr->major_pf, &itr->utime, &itr->stime);
 		tmps[0]+=itr->minor_pf;
 		tmps[1]+=itr->major_pf;
@@ -106,7 +102,6 @@ void workqueue_callback(struct work_struct * curr_work)
 		tmps[3]+=itr->stime;	
 	}
 	printk(KERN_DEBUG "update session, offset: %d, minor: %ld, major: %ld, utime: %ld, stime: %ld\n", offset, tmps[0], tmps[1], tmps[2], tmps[3]);
-	// print to the vm space 
 	// sprintf(vm + offset, tmps)
 	unsigned long * ptr =(unsigned long *)  vm + offset;
 	for (index; index < 4; ++index)
@@ -115,12 +110,6 @@ void workqueue_callback(struct work_struct * curr_work)
 		else * (ptr) = tmps[index];
 		ptr++;
 	}
-
-/*	// debug
-	index = 0;
-	ptr = (unsigned long *) vm + offset;
-	printk(KERN_DEBUG "offset==%d, %ld, %ld, %ld, %ld\t", offset, *(ptr+0), *(ptr+1), *(ptr+2), *(ptr+3)); 
-*/	
 	offset += 4;	
 	if (offset >= VM_ELEMENT_SIZE) //if the element offset < SIZE, append 4 elements to tail   
 	{
@@ -128,7 +117,6 @@ void workqueue_callback(struct work_struct * curr_work)
 		BUFFER_FILLED_UP = 1;
 	}
 	else * (ptr) = -1; // termination
-	// TODO, need for locking the virtual memory part.	
 	queue_delayed_work(wq, &work, DELAYED); // queue again 
 	spin_unlock(&lock);
 	return; 	
@@ -137,16 +125,7 @@ void workqueue_callback(struct work_struct * curr_work)
 /* chr device callback functions*/
 int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 {
-	// map get mmap request from process, and map the user address to the kernel vm 
-	
-	/* unsigned long vmalloc_to_pfn(const void * virtual_addr);
-	 * int remap_pfn_range(struct vm_area_struct *, unsigned long addr,
-	 * 			unsigned long pfn, unsigned long size, pgprot_t);
-	 * pfn: physical memory address
-	 * */
-
 	/* iterate through vm and map each page size to the physical memory */
-		
 	unsigned long p_addr = NULL;
 	unsigned long assigned_size = 0; 
 	unsigned long total_size = vma->vm_end - vma->vm_start;
@@ -168,14 +147,12 @@ int mmap_callback (struct file * inode, struct vm_area_struct * vma)
 	printk(KERN_DEBUG "assigned_size is %lu\n", assigned_size);
 	return 0;
 }
-
 /* operation function for char device, device open */
 // TODO inode, file struct
 int myopen (struct inode * node, struct file * fp)
 {
 	/*if (USER_USE >= USER_CONCURRENT_LIMIT) return -1;
 	USER_USE++;
-		
 	try_module_get(THIS_MODULE);
 	return 0;
 	*/
@@ -192,25 +169,21 @@ int myrelease (struct inode * node, struct file * fp){
 	return 0;
 }
 
-/* */
+/* register the process to the list, so that the work will include its task_struct info into the virtual memory  */
 int reg_entry(int pid)
 {
 	printk(KERN_DEBUG "[reg entry] entered for %d...\n", pid);
-	
 	ts_mp3 * new_struct = kmalloc(sizeof(ts_mp3), GFP_KERNEL); // TODO replace with the kmemecache
 	new_struct->pid = pid;
 	new_struct->tsk = find_task_by_pid(pid); // replace with get_cpu_use(task_struct * )
 	if (!new_struct->tsk) return 1;
-	
 	printk(KERN_DEBUG "finished init struct, new->tsk ptr: %p, check list size\n", new_struct->tsk);
-	
 	spin_lock(&lock);
 	// init workqueue job
 	if (list_empty(&HEAD))
 	{
 		debug("create new delayed work since it is the first node in the list...\n");
 		INIT_DELAYED_WORK(&work, workqueue_callback);
-		//if (work) 
 		if (queue_delayed_work(wq, &work, DELAYED)) alert("failed with queue work...\n"); // TODO return value and the return of work init
 	}
 	list_add_tail(&new_struct->node, &HEAD);
@@ -218,12 +191,10 @@ int reg_entry(int pid)
 	return 0;
 }
 
-
-/**/
+/* unregister the process from the list, if there are no more process, then delete the delayed_work */
 int unreg_entry(int pid)
 {
 	printk(KERN_DEBUG "[unreg entry] entered for %d...\n", pid);
-  
 	//remove entry from list
 	spin_lock(&lock);
 	ts_mp3 * task = get_by_pid(pid);
@@ -233,7 +204,6 @@ int unreg_entry(int pid)
 		return 0;
 	}
 	list_del(&task->node);
-
 	if (list_empty(&HEAD)) 
 	{	
 		cancel_delayed_work_sync(&work);
@@ -244,7 +214,7 @@ int unreg_entry(int pid)
 	return 0;
 }
 
-/* read callback, for all the samples */
+/* read callback, for read all samples. No need for this MP */
 static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_t * offset) 
 {
 	// read is not used in this mp
@@ -253,13 +223,10 @@ static ssize_t myread(struct file *fp, char __user * userbuff, size_t len, loff_
 	char buff[256] = {0};
 	sprintf(buff, "first four elements: %ld, %ld, %ld, %ld\n", ptr, ptr+1, ptr+2, ptr+3);
 	int length = strlen(buff);
-
 	unsigned long copied = copy_to_user(userbuff, vm, length + 1);
-	
 	*offset += (length + 1);
 	return copied;
 }
-
 
 /* write callback, handle R and U requests */
 static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t len, loff_t * offset)
@@ -269,8 +236,7 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 	buff[len] = 0;
 	copy_from_user(buff, userbuff, len);  // return 0 normally, clarified in __copy_from_user
 	/* any arch with MMU should ovverride the method 
-		in /arch/x86/include/asm/uaccess.h
-	*/
+		in /arch/x86/include/asm/uaccess.h	*/
 	if ((buff[0] != 'R' && buff[0] != 'U') || strlen(buff) < 3) 
 	{	
 		alert("The operation is not supported. Please choose either R(register), U(unregister) + pid as input...\n");	
@@ -281,13 +247,12 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 	printk(KERN_DEBUG "Raw input: %s\n", buff);
 	kstrtoint(buff+2, 10, &pid); // char *, int type, container 
 	char ops = buff[0];
-
 	if (pid == 0 || pid < 0) 
 	{
 		alert("Failed with parse proc file input, please check your pid input...\n");
 		return len;
 	}
-
+	// dispatch
 	switch (ops){
 		case 'R':
 			reg_entry(pid);
@@ -298,18 +263,17 @@ static ssize_t mywrite(struct file * fp, const char __user * userbuff, size_t le
 		default: 
 			alert("this should not happen.\n");
 	}
-	// printk(KERN_DEBUG "Parsed input is: ops - %d; pid - %d", ops, pid);
 	printk(KERN_DEBUG "The input is %s \n", buff);
 	return len; // mywrite will finish normally without return 0
 }
 
-// link function with proc file
+/* file config for proc file interface*/
 static struct file_operations f_ops = {
 	.owner=THIS_MODULE,
 	.read=myread,
 	.write=mywrite
 };
-
+/* file config for character device */
 static struct file_operations f_ops_chrdev = {
 	.owner=THIS_MODULE,
 	.open=myopen,
@@ -317,12 +281,9 @@ static struct file_operations f_ops_chrdev = {
 	.mmap=mmap_callback
 };
 
-/* init list_head, and kmemcache */
+/* init list, vmalloc, chrdev, global var */
 int __init mp3_init(void)
 {
-  // set up proc file entry
-  // kernel list_head init
-  // callback _ file operation
 	alert("[MODULE LOADING]... \n");
 	proc_dir = "mp3";
 	proc_filename = "status";
@@ -339,33 +300,26 @@ int __init mp3_init(void)
 	BUFFER_FILLED_UP = 0;
 	offset = 0;
 	// DELAYED = ((double) 1/SAMPLE_RATE) /  ((double) 1/ USER_HZ);
-	DELAYED = (USER_HZ / SAMPLE_RATE); //jiffies
+	DELAYED = (USER_HZ / SAMPLE_RATE); // transform sample rate to the dalayed time, in jiffies
 	printk(KERN_DEBUG "DELAYED set to be %ld\n", DELAYED); 
 	wq = create_workqueue("mp3");
-
 	// vmalloc
 	vm =(char * ) vmalloc(VM_SIZE); //TODO PG_reserved
 	printk(KERN_DEBUG "Profiler buffer is assigned, vm ptr: %p\n", vm);
-	
 	// spinlock init
 	spin_lock_init(&lock);
-
 	// character device initialization
 	chrdev_name = "mp3";
 	if ((chrdev_major = register_chrdev(0, chrdev_name, &f_ops_chrdev)) < 0) // TODO return value
 	{
 		alert("char device register fails...\n");	
 	}
-
 	return 0;
 }
-
 
 /* remove proc dir and file, freeall nodes on the listm destroy the memcache */                            
 int __exit mp3_exit(void)
 {
-  // stop all the thread which operate on the linked list
-  // free all the memory on the heap 
 	alert("MODULE UNLOADING...\n");
 	spin_lock(&lock);
 	proc_remove(fp);
@@ -378,11 +332,9 @@ int __exit mp3_exit(void)
 	vfree(vm);
 	spin_unlock(&lock);
 	debug("VM freeed\n");
-	// lock => global var
 	debug("successfully clean up all memory...\n");
 	return 0;
 }
-
 
 /* associate with module call function */    
 module_init(mp3_init);

@@ -39,6 +39,7 @@ int local_access(int addr)
   }
 }
 
+// program is to perform work with certain memory size, access pattern
 int main(int argc, char* argv[])
 {
   char cmd[120];

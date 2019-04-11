@@ -56,6 +56,7 @@ void buf_exit()
   }
 }
 
+// program is to read all the documented info by the profiler module 
 int main(int argc, char* argv[])
 {
   long *buf;
