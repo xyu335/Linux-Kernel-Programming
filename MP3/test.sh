@@ -12,7 +12,7 @@ CMD2="nice ./work 1024 R 50000 & nice ./work 1024 L 10000 & "
 # multiprogramming 
 echo "argument's number: $#"
 
-if  [$# -ne 2] && [$# -ne 3] 
+if  [ $# -ne 2 ] && [ $# -ne 3 ] 
 then
 	echo "usage: ./exe expID <Nstart> <Nend> <memory=200MB> <locality=Random> <uaccess=10000>"
 	echo "or ./exe expID <case study ID>"
@@ -41,7 +41,7 @@ naccess=10000
 index=0
 CMD="nice ./work $memory $locality $naccess > /dev/null &"
 SAVE_FILE_PREFIX="data/profile_N"
-echo $CMD
+$CMD
 
 
 
