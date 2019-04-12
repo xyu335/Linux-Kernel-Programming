@@ -46,7 +46,7 @@ static char * vm;
 static unsigned long DELAYED; // for delayed queue work
 static unsigned int USER_USE; // for counting char device open times
 static unsigned int USER_CONCURRENT_LIMIT = 1; // for limit access to the driver
-static unsigned int offset; // how many (unsgined long ) has been written into the sample
+static unsigned int offset; // number of (unsgined long ) that has been updated to the vm, reset in the unregister
 static int BUFFER_FILLED_UP;
 spinlock_t lock;
 
@@ -206,6 +206,8 @@ int unreg_entry(int pid)
 	list_del(&task->node);
 	if (list_empty(&HEAD)) 
 	{	
+		// reset the pointer 
+		offset = 0;
 		cancel_delayed_work_sync(&work);
 	}
 	kfree(task);
