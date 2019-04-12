@@ -58,8 +58,10 @@ struct mp3_task_struct{
 	struct task_struct * tsk;
 	struct list_head node;
 	// struct timer_list tm;
+	unsigned long run_time;
 	unsigned long utime; // user space cpu time
 	unsigned long stime; // system space cpu time
+	unsigned long cpu_time; // utime + stime
 	unsigned long minor_pf; // page fault
 	unsigned long major_pf; // IO page fault
 	pid_t pid;
@@ -89,28 +91,29 @@ void workqueue_callback(struct work_struct * curr_work)
 	}
 	ts_mp3 * itr = NULL;
 	ts_mp3 * tmp = NULL;
-	unsigned long tmps[4] = {};
+	unsigned long tmps[4] = {0};
 	int index = 0;
 	spin_lock(&lock);
 	list_for_each_entry_safe(itr, tmp, &HEAD, node)
 	{
 		// update pf, utime, into the ts_mp3 struct
 		get_cpu_use(itr->pid, &itr->minor_pf, &itr->major_pf, &itr->utime, &itr->stime);
-		tmps[0]+=itr->minor_pf;
-		tmps[1]+=itr->major_pf;
-		tmps[2]+=itr->utime;
-		tmps[3]+=itr->stime;	
+		tmps[0]+=jiffies;
+		tmps[1]+=itr->minor_pf;
+		tmps[2]+=itr->major_pf;
+		tmps[3]+=(itr->stime + itr->utime);	 // utilization 
 	}
 	printk(KERN_DEBUG "update session, offset: %d, minor: %ld, major: %ld, utime: %ld, stime: %ld\n", offset, tmps[0], tmps[1], tmps[2], tmps[3]);
 	// sprintf(vm + offset, tmps)
 	unsigned long * ptr =(unsigned long *)  vm + offset;
 	for (index; index < 4; ++index)
 	{
-		if (offset >= 4) *(ptr) = tmps[index] + *(ptr-4); // cumulative value 
-		else * (ptr) = tmps[index];
+		// if (offset >= 4) *(ptr) = tmps[index] + *(ptr-4); // cumulative value 
+		// else * (ptr) = tmps[index];
+		* ptr = tmps[index];
 		ptr++;
 	}
-	offset += 4;	
+	offset += 4;
 	if (offset >= VM_ELEMENT_SIZE) //if the element offset < SIZE, append 4 elements to tail   
 	{
 		printk(KERN_ALERT "VM_ELEMENT_SIZE is reached, buffer is filled up...\n");
