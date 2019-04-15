@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # test thrashing and locality
-CMD1="nice ./work 1024 R 50000 & nice ./work 1024 R 10000 & "
+CMD1="nice ./work 1024 R 50000"
+CMD2="nice ./work 1024 R 10000"
 
 # test thrashing and locality
-CMD2="nice ./work 1024 R 50000 & nice ./work 1024 L 10000 & "
+CMD3="nice ./work 1024 L 10000"
 
 # test multiprogramming 
 # nice ./work 200 R 10000  & nice ./work 200 R 10000 
@@ -12,24 +13,35 @@ CMD2="nice ./work 1024 R 50000 & nice ./work 1024 L 10000 & "
 # multiprogramming 
 echo "argument's number: $#"
 
-if  [ $# -ne 2 ] && [ $# -ne 3 ] 
+if  [ $# -ne 1 ] && [ $# -ne 3 ] 
 then
-	echo "usage: ./exe expID <Nstart> <Nend> <memory=200MB> <locality=Random> <uaccess=10000>"
-	echo "or ./exe expID <case study ID>"
+	echo "usage for case study 2: ./exe 2 <Nstart> <Nend> <memory=200MB> <locality=Random> <uaccess=10000>"
+	echo "usage for case study 1: ./exe 1"
 	echo "expID: \t 2 - N multiprocessing expriment \n \t 1 - case study"
 	exit
 fi
 
-if [ $# -eq 2 ]
+if [ $# -eq 1 ]
 then
-	echo "2 arguments, experiment 1 starts" 
-	csID=$2
-	if [ $csID -eq 1 ]
-	then
-		$CMD1	 
-	else 
-		$CMD2
-	fi
+	echo "experiment 1 starts" 
+	$CMD1 &
+	p1=$!
+	$CMD2 &
+	p2=$!
+	wait $p1
+	wait $p2
+	./monitor > data/profile1.data
+	
+	
+	echo "experiment 2 starts" 
+	$CMD1 &
+	p1=$!
+	$CMD3 &
+	p2=$!
+	wait $p1
+	wait $p2
+	./monitor > data/profile2.data
+	
 	exit
 fi
 N_start=$2
