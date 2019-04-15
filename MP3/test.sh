@@ -21,7 +21,8 @@ then
 fi
 
 if [ $# -eq 2 ]
-then 
+then
+	echo "2 arguments, experiment 1 starts" 
 	csID=$2
 	if [ $csID -eq 1 ]
 	then
@@ -33,20 +34,24 @@ then
 fi
 N_start=$2
 N_end=$3
+((N_end=$N_end+1))
 memory=200
 locality='R'
 naccess=10000
+CWD=$PWD
+#TARGET="/home/xy21/CS423/MP3/"
+echo "parameters: N_start $N_start, N_end $N_end, current dir: $CWD"
 
 # index for single work, global
 index=0
-CMD="nice ./work $memory $locality $naccess > /dev/null &"
-SAVE_FILE_PREFIX="data/profile_N"
-$CMD
-
+CMD="nice ./work $memory $locality $naccess > /dev/null" # not sure if the /dev/null will cause inorder of cmd
+# CMD="nice ./work $memory $locality $naccess"
+SAVE_FILE_PREFIX="./data/profile_N"
+# $CMD
 
 
 # iterate throught different N 
-for ((N=$N_start;N<$N_end;N++)); do
+for ((N=$N_start;N<N_end;N++)); do
 	echo "START: N $N work is running in parallel"
 	ITR=0
 	INCREMENT=1
@@ -54,7 +59,8 @@ for ((N=$N_start;N<$N_end;N++)); do
 	do	
 		ITR=` expr $ITR + $INCREMENT `
 	# iterate the cmd
-		$CMD
+		$CMD & 
+		echo "N==$N INR==$ITR"
 		pids[$index]=$!
 	done
 
@@ -65,10 +71,12 @@ for ((N=$N_start;N<$N_end;N++)); do
     	wait $pid
 	done
 
-	echo "WRITE TO FILE"
+	echo "WRITE TO FILE FOR N $N"
 	#write to file
-	CMD_MONITOR="./monitor > $SAVE_FILE_PREFIX$N.data "
-
+	FILE_NAME="$SAVE_FILE_PREFIX$N.data"
+	CMD_MONITOR="./monitor"
+	echo "save command: $CMD_MONITOR > $FILE_NAME"
+	$CMD_MONITOR > $FILE_NAME
 done
 
 
