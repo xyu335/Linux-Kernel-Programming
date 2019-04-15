@@ -77,6 +77,7 @@ for ((N=$N_start;N<N_end;N++)); do
 	CMD_MONITOR="./monitor"
 	echo "save command: $CMD_MONITOR > $FILE_NAME"
 	$CMD_MONITOR > $FILE_NAME
+	echo "finished this round for N $N"
 done
 
 
