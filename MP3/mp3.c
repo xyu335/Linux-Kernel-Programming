@@ -94,11 +94,11 @@ void workqueue_callback(struct work_struct * curr_work)
 	unsigned long tmps[4] = {0};
 	int index = 0;
 	spin_lock(&lock);
+	tmps[0] = jiffies;
 	list_for_each_entry_safe(itr, tmp, &HEAD, node)
 	{
 		// update pf, utime, into the ts_mp3 struct
 		get_cpu_use(itr->pid, &itr->minor_pf, &itr->major_pf, &itr->utime, &itr->stime);
-		tmps[0]+=jiffies;
 		tmps[1]+=itr->minor_pf;
 		tmps[2]+=itr->major_pf;
 		tmps[3]+=(itr->stime + itr->utime);	 // utilization 
