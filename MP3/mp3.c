@@ -14,6 +14,7 @@
 #include <linux/mm.h> // memory management, mapping funcs
 #include <linux/uaccess.h> // copy from user, to user zz
 #include <linux/spinlock.h>
+#include <linux/page-flags.h> // for macros, PAGE_reserved
 
 MODULE_AUTHOR("GROUP_ID");
 MODULE_LICENSE("GPL");
@@ -286,6 +287,21 @@ static struct file_operations f_ops_chrdev = {
 	.mmap=mmap_callback
 };
 
+/* reserve all page for the vm */
+void vm_reserved(void)
+{
+	struct page * curr_page;
+	// VM_SIZE
+	unsigned long i;
+	for (i = 0L; i < VM_SIZE; i+=PAGE_SIZE)
+	{
+		// iterate through all vm pages
+		curr_page = vmalloc_to_page(vm + i);
+		SetPageReserved(curr_page);
+	}
+	return;
+}
+
 /* init list, vmalloc, chrdev, global var */
 int __init mp3_init(void)
 {
@@ -310,6 +326,7 @@ int __init mp3_init(void)
 	wq = create_workqueue("mp3");
 	// vmalloc
 	vm =(char * ) vmalloc(VM_SIZE); //TODO PG_reserved
+	vm_reserved();
 	printk(KERN_DEBUG "Profiler buffer is assigned, vm ptr: %p\n", vm);
 	// spinlock init
 	spin_lock_init(&lock);
