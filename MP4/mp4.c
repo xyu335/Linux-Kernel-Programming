@@ -55,6 +55,9 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 	 * Add your code here
 	 * ...
 	 */
+	
+// 	kmalloc()
+	
 	return 0;
 }
 
