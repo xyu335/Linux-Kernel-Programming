@@ -7,7 +7,19 @@
 #include <linux/cred.h>
 #include <linux/dcache.h>
 #include <linux/binfmts.h>
+#include <linux/fs.h>  // for inode struct, /fs/xattr.c vfs_getxattr, // superblock enabled
+#include <linux/dcache.h> // for dentry and dput
+#include <linux/string.h> // strlen enabled
+
 #include "mp4_given.h"
+
+#ifdef CONFIG_SECURITY_MP4_LSM
+void do_something(void) {pr_info("MP4 activated.");}
+#else 
+void do_something(void) {pr_info("nothing.");}
+#endif
+
+typedef blobs struct mp4_security;	/* type macrp */
 
 /**
  * get_inode_sid - Get the inode mp4 security label id
@@ -19,11 +31,40 @@
  */
 static int get_inode_sid(struct inode *inode)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
-	return 0;
+	// determine if the xattr support is enabled
+	if (!inode->ops->getxattr) 
+	{
+		pr_info("current security module does not have xattr support.\n");
+	}
+
+	// get the xattr of the inode
+	struct dentry * s_root;
+	char * ctx = NULL;
+	
+	// find the parent directory dentry
+	struct super_block * i_sb = inode->isb;
+	s_root = i_sb->s_root;
+	
+	int len = strlen(XATTR_NAME_MP4);
+	ctx = kmalloc(len + 1, GFP_KERNEL);
+	ctx[len] = '\0';
+	ssize_t ret = getxattr(s_root, XATTR_NAME_MP4, ctx, len);
+	
+	if (ret <= 0) 
+	{
+		if (errno == ERANGE) pr_err("ERANGE ERROR occurred...\n");
+		dput(s_root);
+		return -1;
+	}
+	// watch out for ERANGE error. 
+	// convert the attr ctx to sid 
+	int sid = __cred_ctx_to_sid(ctx);
+	pr_info("sid is generated for inode");
+	
+	// dput() back the entry to reduce reference count by 1 
+	dput(s_root);
+
+	return sid;
 }
 
 /**
@@ -35,10 +76,20 @@ static int get_inode_sid(struct inode *inode)
  */
 static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
+
+	// READ THE context of the binary file that launch the program
+	
+	struct inode * node = file_inode(bprm->file);
+	int sid = get_inode_sid(node);
+
+	// get the current security label ..TODO
+	if (sid == MP4_NO_ACCESS) return -1; // if the security label is not target, then TODO
+	// rcu lock required, since only the task itself can modify the credentials of it
+	struct cred * cred = current_cred();
+	const struct mp4_security * old_tsec = cred->security;
+	old_tsec->mp4_flags = sid;
+
+	printk(KERN_ALERT "cs423mp4 The sid got for the binary file %d\n", sid);
 	return 0;
 }
 
@@ -56,7 +107,15 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 	 * ...
 	 */
 	
-// 	kmalloc()
+	struct mp4_security * ptr = kmalloc(sizeof(struct mp4_security), gfp);
+	if (!ptr) 
+	{	
+		pr_err("memory allocation for blob failed..");
+		return -ENOMEM;
+	}
+	cred->security = ptr; 
+	// struct mp4_security * ptr = (struct mp4_security *) cred->security;
+	ptr->mp4_flags = MP4_NO_ACCESS;
 	
 	return 0;
 }
@@ -74,6 +133,12 @@ static void mp4_cred_free(struct cred *cred)
 	 * Add your code here
 	 * ...
 	 */
+	
+	struct mp4_security * ptr = cred->security;
+	// BUG_ON defined in include/asm-generic/ 
+	cred->security = (void *) 0x7UL; // ? what is this memory address, low address in userspace
+	kree(ptr);
+	
 }
 
 /**
@@ -87,6 +152,24 @@ static void mp4_cred_free(struct cred *cred)
 static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 			    gfp_t gfp)
 {
+	const struct mp4_security * old_tsec;
+	struct mp4_security * tsec;
+
+	old_tsec = old->security;
+	
+	tsec = kmemdup(old_tsec, sizeof(struct mp4_security, gfp);
+	if (!tsec) return -ENOMEM;
+	// add the modification to the mp4_security struct TODO
+	
+	new->security = tsec;
+	return 0;
+}
+
+
+static inline int security_sid_to_context(int sid, char ** context, size_t * len)
+{
+	* context = "read-write";
+	* len = strlen(*context);
 	return 0;
 }
 
@@ -107,10 +190,38 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 				   const struct qstr *qstr,
 				   const char **name, void **value, size_t *len)
 {
+	// init security for newly created inode
+	
 	/*
-	 * Add your code here
-	 * ...
-	 */
+	struct mp4_security * new_tsec = kmalloc(sizeof(mp4_security), GFP_KERNEL);
+	if (!new_tsec) return -ENOMEM; // no mem for new mp4_sec
+	*/
+ 
+	struct cred * cred = current_cred();
+	int newsid = 0;
+	size_t clen = 0;
+	char * context = NULL;
+
+	if (cred->security->mp4_flags == MP4_TARGET_SID)
+	{
+		if (name) *name = XATTR_NAME_MP4;
+		if (value && len)
+		{
+			int rc = security_sid_to_context(newsid, &context, &clen);
+			if (rc)
+				return rc;
+			// xattr assignment
+			*value = context;
+			*len = clen;
+		}
+		else
+		{
+			// clear the xattr name
+			* name = NULL;
+			pr_err("input pointer for len and value...\n");
+		}
+	} 
+
 	return 0;
 }
 
@@ -126,10 +237,10 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
  */
 static int mp4_has_permission(int ssid, int osid, int mask)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
+
+	// check subject's permission 
+	
+
 	return 0;
 }
 
@@ -146,11 +257,41 @@ static int mp4_has_permission(int ssid, int osid, int mask)
  */
 static int mp4_inode_permission(struct inode *inode, int mask)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
+	/* hook for inode check */ 
+	
+	int ssid = current_security->security->mp4_label;
+	struct dentry * de = d_find_alias(inode);
+	
+	int ret_dir_rec = dir_look(de, ssid);
+
 	return 0;
+}
+
+
+// 
+static int dir_look(dentry * de, int ssid)
+{
+	const char * dname = de->d_name->name;
+	// 1 for skippable
+	int skip = mp4_should_skip_path(dname); 
+	int perm = -EACCES;
+
+	if (!skip) 
+	{
+		// if (de->d_parent)  TODO 
+		int ret_recursive = dir_look(de->d_parent);
+	}
+	else
+	{
+		// has-permission
+		struct inode * dir_inode = de->d_inode;
+		
+		int osid = get_inode_sid(dir_inode); // object sid
+		perm = mp4_has_permission(ssid, osid, mask);
+		
+	}
+	
+	return perm;
 }
 
 
@@ -185,7 +326,10 @@ static __init int mp4_init(void)
 		return 0;
 
 	pr_info("mp4 LSM initializing..");
-
+	// the attr key
+	pr_info(XATTR_NAME_MP4);
+	
+	do_something();	
 	/*
 	 * Register the mp4 hooks with lsm
 	 */
