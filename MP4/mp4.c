@@ -135,7 +135,7 @@ static void mp4_cred_free(struct cred *cred)
 	struct mp4_security * ptr = cred->security;
 	// BUG_ON defined in include/asm-generic/
 	// BUG_ON(cred->security && cred->security < PAGE_) 
-	if (!cred->security) return -EINVAL;
+	if (!cred->security) return 0; 
 
 	// cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
 	cred->security = NULL;
@@ -157,7 +157,7 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 	struct mp4_security * tsec;
 
 	old_tsec = old->security;
-	if (!old_tsec)
+	if (old_tsec) // bug
 		tsec = kmemdup(old_tsec, sizeof(struct mp4_security), gfp);
 	if (!tsec) return -ENOMEM;
 	// add the modification to the mp4_security struct TODO
