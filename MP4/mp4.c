@@ -79,6 +79,7 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 
 	// READ THE context of the binary file that launch the program
 	
+	/*	
 	struct inode * node = file_inode(bprm->file);
 	int sid = get_inode_sid(node);
 
@@ -90,6 +91,7 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	old_tsec->mp4_flags = sid;
 
 	printk(KERN_ALERT "cs423mp4 The sid got for the binary file %d\n", sid);
+	*/
 	return 0;
 }
 
@@ -102,10 +104,6 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
  */
 static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
 	
 	struct mp4_security * ptr = kmalloc(sizeof(struct mp4_security), gfp);
 	if (!ptr) 
@@ -113,10 +111,10 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 		pr_err("memory allocation for blob failed..");
 		return -ENOMEM;
 	}
+	if (!cred) 
+		return -EINVAL; // TODO
 	cred->security = ptr; 
-	// struct mp4_security * ptr = (struct mp4_security *) cred->security;
 	ptr->mp4_flags = MP4_NO_ACCESS;
-	
 	return 0;
 }
 
@@ -129,16 +127,15 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
  */
 static void mp4_cred_free(struct cred *cred)
 {
-	/*
-	 * Add your code here
-	 * ...
-	 */
-	
+	if (!cred) return -EINVAL;
 	struct mp4_security * ptr = cred->security;
-	// BUG_ON defined in include/asm-generic/ 
-	cred->security = (void *) 0x7UL; // ? what is this memory address, low address in userspace
+	// BUG_ON defined in include/asm-generic/
+	// BUG_ON(cred->security && cred->security < PAGE_) 
+	if (!cred->security) return -EINVAL;
+
+	// cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
+	cred->security = NULL;
 	kree(ptr);
-	
 }
 
 /**
@@ -156,8 +153,8 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 	struct mp4_security * tsec;
 
 	old_tsec = old->security;
-	
-	tsec = kmemdup(old_tsec, sizeof(struct mp4_security, gfp);
+	if (!old_tsec)
+		tsec = kmemdup(old_tsec, sizeof(struct mp4_security, gfp));
 	if (!tsec) return -ENOMEM;
 	// add the modification to the mp4_security struct TODO
 	
@@ -196,7 +193,8 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	struct mp4_security * new_tsec = kmalloc(sizeof(mp4_security), GFP_KERNEL);
 	if (!new_tsec) return -ENOMEM; // no mem for new mp4_sec
 	*/
- 
+ 	
+	/*
 	struct cred * cred = current_cred();
 	int newsid = 0;
 	size_t clen = 0;
@@ -221,7 +219,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 			pr_err("input pointer for len and value...\n");
 		}
 	} 
-
+	*/
 	return 0;
 }
 
@@ -259,11 +257,12 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 {
 	/* hook for inode check */ 
 	
+	/*
 	int ssid = current_security->security->mp4_label;
 	struct dentry * de = d_find_alias(inode);
 	
 	int ret_dir_rec = dir_look(de, ssid);
-
+	*/
 	return 0;
 }
 
