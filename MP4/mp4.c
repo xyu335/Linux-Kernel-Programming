@@ -10,6 +10,10 @@
 #include <linux/fs.h>  // for inode struct, /fs/xattr.c vfs_getxattr, // superblock enabled
 #include <linux/dcache.h> // for dentry and dput
 #include <linux/string.h> // strlen enabled
+#include <linux/xattr.h> // 
+#include <linux/errno.h> // errno/
+
+#include <asm/uaccess.h> 
 
 #include "mp4_given.h"
 
@@ -19,7 +23,7 @@ void do_something(void) {pr_info("MP4 activated.");}
 void do_something(void) {pr_info("nothing.");}
 #endif
 
-typedef blobs struct mp4_security;	/* type macrp */
+// typedef blobs struct mp4_security;	/* type macrp */
 
 /**
  * get_inode_sid - Get the inode mp4 security label id
@@ -32,7 +36,7 @@ typedef blobs struct mp4_security;	/* type macrp */
 static int get_inode_sid(struct inode *inode)
 {
 	// determine if the xattr support is enabled
-	if (!inode->ops->getxattr) 
+	if (!inode->i_op->getxattr) 
 	{
 		pr_info("current security module does not have xattr support.\n");
 	}
@@ -42,17 +46,17 @@ static int get_inode_sid(struct inode *inode)
 	char * ctx = NULL;
 	
 	// find the parent directory dentry
-	struct super_block * i_sb = inode->isb;
+	struct super_block * i_sb = inode->i_sb;
 	s_root = i_sb->s_root;
 	
 	int len = strlen(XATTR_NAME_MP4);
 	ctx = kmalloc(len + 1, GFP_KERNEL);
 	ctx[len] = '\0';
-	ssize_t ret = getxattr(s_root, XATTR_NAME_MP4, ctx, len);
+	ssize_t ret = inode->i_op->getxattr(s_root, XATTR_NAME_MP4, ctx, len);
 	
 	if (ret <= 0) 
 	{
-		if (errno == ERANGE) pr_err("ERANGE ERROR occurred...\n");
+		// if (errno == ERANGE) pr_err("ERANGE ERROR occurred...\n");
 		dput(s_root);
 		return -1;
 	}
@@ -135,7 +139,7 @@ static void mp4_cred_free(struct cred *cred)
 
 	// cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
 	cred->security = NULL;
-	kree(ptr);
+	kfree(ptr);
 }
 
 /**
@@ -154,7 +158,7 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 
 	old_tsec = old->security;
 	if (!old_tsec)
-		tsec = kmemdup(old_tsec, sizeof(struct mp4_security, gfp));
+		tsec = kmemdup(old_tsec, sizeof(struct mp4_security), gfp);
 	if (!tsec) return -ENOMEM;
 	// add the modification to the mp4_security struct TODO
 	
@@ -261,16 +265,16 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	int ssid = current_security->security->mp4_label;
 	struct dentry * de = d_find_alias(inode);
 	
-	int ret_dir_rec = dir_look(de, ssid);
+	int ret_dir_rec = dir_look(de, ssid, mask);
 	*/
 	return 0;
 }
 
 
 // 
-static int dir_look(dentry * de, int ssid)
+static int dir_look(struct dentry * de, int ssid, int mask)
 {
-	const char * dname = de->d_name->name;
+	const char * dname = (de->d_name).name;
 	// 1 for skippable
 	int skip = mp4_should_skip_path(dname); 
 	int perm = -EACCES;
@@ -278,7 +282,7 @@ static int dir_look(dentry * de, int ssid)
 	if (!skip) 
 	{
 		// if (de->d_parent)  TODO 
-		int ret_recursive = dir_look(de->d_parent);
+		int ret_recursive = dir_look(de->d_parent, ssid, mask);
 	}
 	else
 	{
@@ -287,7 +291,6 @@ static int dir_look(dentry * de, int ssid)
 		
 		int osid = get_inode_sid(dir_inode); // object sid
 		perm = mp4_has_permission(ssid, osid, mask);
-		
 	}
 	
 	return perm;
