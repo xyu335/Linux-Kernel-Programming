@@ -22,8 +22,10 @@ int __init mp1_init(void)
    
    printk(KERN_ALERT "MP1 MODULE LOADED\n");
 	
+	struct mp4_security * sec = NULL;
+	int flags = -1;
 	rcu_read_lock(); // lock for find by pid
-	struct task_struct * task = find_task_by_pid(99);
+	struct task_struct * task = find_task_by_pid(1);
 	if (task != NULL) 
 	{
 		struct cred * cd = task->cred;
@@ -34,13 +36,14 @@ int __init mp1_init(void)
 			return 0;
 		}else 
 		{
-			struct mp4_security * sec = cd->security;
-			int flags = sec->mp4_flags;
+			sec = cd->security;
+			flags = sec->mp4_flags;
 			printk(KERN_ALERT "security addr: %p, flags: %d\n", sec, flags);
 		}
 	}
 	rcu_read_unlock();
-	
+	if (!sec) printk(KERN_ALERT "security addr: %p, flags: %d\n", sec, flags);
+	else printk(KERN_ALERT "false sec...");
    return 0;   
 }
 
