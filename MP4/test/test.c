@@ -41,10 +41,14 @@ int __init mp1_init(void)
 			sec = cd->security;
 			flags = sec->mp4_flags;
 		}
+		
 	}
+	printk(KERN_ALERT "start printing\n");
 	rcu_read_unlock();
-	if (!sec) printk(KERN_ALERT "security addr: %p, flags: %d\n", sec, flags);
+	if (sec) printk(KERN_ALERT "security addr: %lu, flags: %d\n", (unsigned long) sec, flags);
 	else printk(KERN_ALERT "false sec...");
+	
+	printk("finished init module");
    return 0;   
 }
 
