@@ -63,7 +63,7 @@ static int get_inode_sid(struct inode *inode)
 	if (ret <= 0) 
 	{
 		// if (errno == ERANGE) pr_err("ERANGE ERROR occurred...\n");
-		dput(s_root);
+		dput(de);
 		return -1;
 	}
 	// watch out for ERANGE error. 
@@ -96,7 +96,7 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	// rcu lock required, since only the task itself can modify the credentials of it
 	struct cred * cred = current_cred();
 	if (!cred) return -1; // TODO
-	const struct mp4_security * old_tsec = cred->security;
+	struct mp4_security * old_tsec = cred->security;
 	if (!old_tsec) return -1; // TODO
 	old_tsec->mp4_flags = sid;
 
@@ -209,13 +209,15 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	if (!new_tsec) return -ENOMEM; // no mem for new mp4_sec
 	*/
  	
-	/*
 	struct cred * cred = current_cred();
+	if (!cred) return -ENOMEM;
 	int newsid = 0;
 	size_t clen = 0;
 	char * context = NULL;
+	struct mp4_security * sec = cred->security;
+	if (!sec) return -ENOMEM;
 
-	if (cred->security->mp4_flags == MP4_TARGET_SID)
+	if (sec->mp4_flags == MP4_TARGET_SID)
 	{
 		if (name) *name = XATTR_NAME_MP4;
 		if (value && len)
@@ -229,12 +231,12 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 		}
 		else
 		{
-			// clear the xattr name
+			// clear the xattr name TODO
 			* name = NULL;
 			pr_err("input pointer for len and value...\n");
 		}
 	} 
-	*/
+	
 	return 0;
 }
 
