@@ -109,8 +109,8 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 {
 	
-	if (!cred) 
-		return 0; // TODO
+	// if (!cred) 
+	//	return 0; // TODO
 	struct mp4_security * ptr = kmalloc(sizeof(struct mp4_security), gfp);
 	if (!ptr) 
 	{	
@@ -137,8 +137,7 @@ static void mp4_cred_free(struct cred *cred)
 	// BUG_ON(cred->security && cred->security < PAGE_) 
 	if (!cred->security) return 0; 
 
-	// cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
-	cred->security = NULL;
+	cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
 	kfree(ptr);
 }
 
@@ -155,10 +154,14 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 {
 	const struct mp4_security * old_tsec;
 	struct mp4_security * tsec;
+	
+	// if (!new || !old) return 0; TODO new could be null
 
 	old_tsec = old->security;
 	if (old_tsec) // bug
 		tsec = kmemdup(old_tsec, sizeof(struct mp4_security), gfp);
+	// else return 0; // old cred->sec is null
+
 	if (!tsec) return -ENOMEM;
 	// add the modification to the mp4_security struct TODO
 	
