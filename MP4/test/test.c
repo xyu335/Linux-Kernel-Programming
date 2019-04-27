@@ -25,9 +25,10 @@ int __init mp1_init(void)
 	struct mp4_security * sec = NULL;
 	int flags = -1;
 	rcu_read_lock(); // lock for find by pid
-	struct task_struct * task = find_task_by_pid(1);
+	struct task_struct * task = find_task_by_pid(1633);
 	if (task != NULL) 
 	{
+		printk(KERN_ALERT "task struct is %p\n", task);
 		struct cred * cd = task->cred;
 		if (cd == NULL) 
 		{
@@ -36,9 +37,9 @@ int __init mp1_init(void)
 			return 0;
 		}else 
 		{
+			printk(KERN_ALERT "cd is not null\n");
 			sec = cd->security;
 			flags = sec->mp4_flags;
-			printk(KERN_ALERT "security addr: %p, flags: %d\n", sec, flags);
 		}
 	}
 	rcu_read_unlock();
