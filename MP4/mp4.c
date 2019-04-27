@@ -54,12 +54,13 @@ static int get_inode_sid(struct inode *inode)
 	
 	// get_alias
 	de = d_find_alias(inode);
+	if (!de) return -1; // TODO
 
 	int len = strlen(XATTR_NAME_MP4);
 	ctx = kmalloc(len + 1, GFP_KERNEL); // TODO, pitfall 
+	if (!ctx) return -1;
 	ctx[len] = '\0';
 	ssize_t ret = inode->i_op->getxattr(de, XATTR_NAME_MP4, ctx, len);
-	
 	if (ret <= 0) 
 	{
 		// if (errno == ERANGE) pr_err("ERANGE ERROR occurred...\n");
