@@ -45,20 +45,20 @@ static int get_inode_sid(struct inode *inode)
 	}
 
 	// get the xattr of the inode
-	struct dentry * s_root;
+	struct dentry * de;
 	char * ctx = NULL;
 	
 	// find the parent directory dentry
-	struct super_block * i_sb = inode->i_sb;
-	s_root = i_sb->s_root;
+	// struct super_block * i_sb = inode->i_sb;
+	// de = i_sb->s_root;
 	
 	// get_alias
-	
+	de = d_find_alias(inode);
 
 	int len = strlen(XATTR_NAME_MP4);
-	ctx = kmalloc(len + 1, GFP_KERNEL);
+	ctx = kmalloc(len + 1, GFP_KERNEL); // TODO, pitfall 
 	ctx[len] = '\0';
-	ssize_t ret = inode->i_op->getxattr(s_root, XATTR_NAME_MP4, ctx, len);
+	ssize_t ret = inode->i_op->getxattr(de, XATTR_NAME_MP4, ctx, len);
 	
 	if (ret <= 0) 
 	{
@@ -72,7 +72,7 @@ static int get_inode_sid(struct inode *inode)
 	pr_info("sid is generated for inode");
 	
 	// dput() back the entry to reduce reference count by 1 
-	dput(s_root);
+	dput(de);
 
 	return sid;
 }
@@ -88,20 +88,19 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 {
 
 	// READ THE context of the binary file that launch the program
-	
-	/*	
 	struct inode * node = file_inode(bprm->file);
 	int sid = get_inode_sid(node);
 
-	// get the current security label ..TODO
+	// get the current security label ..
 	if (sid == MP4_NO_ACCESS) return -1; // if the security label is not target, then TODO
 	// rcu lock required, since only the task itself can modify the credentials of it
 	struct cred * cred = current_cred();
+	if (!cred) return -1; // TODO
 	const struct mp4_security * old_tsec = cred->security;
+	if (!old_tsec) return -1; // TODO
 	old_tsec->mp4_flags = sid;
 
 	printk(KERN_ALERT "cs423mp4 The sid got for the binary file %d\n", sid);
-	*/
 	return 0;
 }
 
