@@ -109,14 +109,14 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 {
 	
+	if (!cred) 
+		return 0; // TODO
 	struct mp4_security * ptr = kmalloc(sizeof(struct mp4_security), gfp);
 	if (!ptr) 
 	{	
 		pr_err("memory allocation for blob failed..");
 		return -ENOMEM;
 	}
-	if (!cred) 
-		return -EINVAL; // TODO
 	cred->security = ptr; 
 	ptr->mp4_flags = MP4_NO_ACCESS;
 	return 0;
@@ -131,7 +131,7 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
  */
 static void mp4_cred_free(struct cred *cred)
 {
-	if (!cred) return -EINVAL;
+	if (!cred) return 0; // TODO
 	struct mp4_security * ptr = cred->security;
 	// BUG_ON defined in include/asm-generic/
 	// BUG_ON(cred->security && cred->security < PAGE_) 
