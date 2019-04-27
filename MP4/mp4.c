@@ -36,9 +36,12 @@ void do_something(void) {pr_info("nothing.");}
 static int get_inode_sid(struct inode *inode)
 {
 	// determine if the xattr support is enabled
+	if (!inode) return -1;
+
 	if (!inode->i_op->getxattr) 
 	{
 		pr_info("current security module does not have xattr support.\n");
+		return -1;
 	}
 
 	// get the xattr of the inode
@@ -49,6 +52,9 @@ static int get_inode_sid(struct inode *inode)
 	struct super_block * i_sb = inode->i_sb;
 	s_root = i_sb->s_root;
 	
+	// get_alias
+	
+
 	int len = strlen(XATTR_NAME_MP4);
 	ctx = kmalloc(len + 1, GFP_KERNEL);
 	ctx[len] = '\0';
@@ -109,8 +115,8 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 {
 	
-	// if (!cred) 
-	//	return 0; // TODO
+	//if (!cred) 
+		return 0; // TODO
 	struct mp4_security * ptr = kmalloc(sizeof(struct mp4_security), gfp);
 	if (!ptr) 
 	{	
@@ -154,10 +160,13 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 {
 	const struct mp4_security * old_tsec;
 	struct mp4_security * tsec;
-	
-	// if (!new || !old) return 0; TODO new could be null
+	tsec = NULL;
+
+	if (!new || !old) return 0;// TODO new could be null
 
 	old_tsec = old->security;
+	if (!old->security) return 0;
+
 	if (old_tsec) // bug
 		tsec = kmemdup(old_tsec, sizeof(struct mp4_security), gfp);
 	// else return 0; // old cred->sec is null
