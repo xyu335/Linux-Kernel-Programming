@@ -109,10 +109,13 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	if (!cred->security) 
 	{
 		pr_info("cred->sec allocation start in bprm hook");
-		int ret = mpr_cred_alloc_blank(cred, GFP_KERNEL);
-		if (ret < 0) return -1;  // TODO internel call for another hook function
+		struct mp4_security * ptr = kzalloc(sizeof(struct mp4_security), GFP_KERNEL);
+		if (!ptr)
+		{	pr_err("no memory in allocating security label");
+			return -ENOMEM;}
 	}
-	cred->security->mp4_flags = sid;
+	struct mp4_security * ptr = (cred->security);
+	ptr->mp4_flags = sid;
 	return 0;
 }
 
