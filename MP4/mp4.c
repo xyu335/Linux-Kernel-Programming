@@ -36,34 +36,35 @@ void do_something(void) {pr_info("nothing.");}
 static int get_inode_sid(struct inode *inode)
 {
 	// determine if the xattr support is enabled
-	if (!inode) return -1;
-
 	if (!inode->i_op->getxattr) 
 	{
-		pr_info("current security module does not have xattr support.\n");
-		return -1;
+		pr_err("current security module does not have xattr support.\n");
+		return -ENOENT;
 	}
 
 	// get the xattr of the inode
-	struct dentry * de;
 	char * ctx = NULL;
 	
 	// find the parent directory dentry
 	// struct super_block * i_sb = inode->i_sb;
 	// de = i_sb->s_root;
-	
-	// get_alias
-	de = d_find_alias(inode);
-	if (!de) return -1; // TODO
+	struct dentry * de = d_find_alias(inode);
+	if (!de) {
+		pr_err("the dentry is null..\n");
+		return -ENOENT;
+	}
 
 	int len = strlen(XATTR_NAME_MP4);
 	ctx = kmalloc(len + 1, GFP_KERNEL); // TODO, pitfall 
-	if (!ctx) return -1;
+	if (!ctx) 
+	{
+		pr_err("memory is not allocated..\n");
+		return -ENOMEM;
+	}
 	ctx[len] = '\0';
 	ssize_t ret = inode->i_op->getxattr(de, XATTR_NAME_MP4, ctx, len);
 	if (ret <= 0) 
 	{
-		// if (errno == ERANGE) pr_err("ERANGE ERROR occurred...\n");
 		dput(de);
 		return -1;
 	}
@@ -71,8 +72,6 @@ static int get_inode_sid(struct inode *inode)
 	// convert the attr ctx to sid 
 	int sid = __cred_ctx_to_sid(ctx);
 	pr_info("sid is generated for inode");
-	
-	// dput() back the entry to reduce reference count by 1 
 	dput(de);
 
 	return sid;
@@ -89,19 +88,31 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 {
 
 	// READ THE context of the binary file that launch the program
-	struct inode * node = file_inode(bprm->file);
-	int sid = get_inode_sid(node);
+	if (!bprm)
+	{
+		pr_err("bprm ptr null..\n");
+		return -ENOENT;
+	}
+	struct inode * node = file_inode(bprm->file); // file_inode is inline function, return inode pointer other than error code
+	if (!node) return -ENOENT;
 
-	// get the current security label ..
-	if (sid == MP4_NO_ACCESS) return -1; // if the security label is not target, then TODO
+	int sid = get_inode_sid(node);
+	if (sid == MP4_NO_ACCESS) return -1; // TODO
 	// rcu lock required, since only the task itself can modify the credentials of it
 	struct cred * cred = current_cred();
-	if (!cred) return -1; // TODO
-	struct mp4_security * old_tsec = cred->security;
-	if (!old_tsec) return -1; // TODO
-	old_tsec->mp4_flags = sid;
-
-	printk(KERN_ALERT "cs423mp4 The sid got for the binary file %d\n", sid);
+	if (!cred) 
+	{	
+		pr_err("NO entrance in the bprm set cred hook");
+		return -ENOENT; // the credential of the current process (binary program) has no credential
+	}
+	
+	if (!cred->security) 
+	{
+		pr_info("cred->sec allocation start in bprm hook");
+		int ret = mpr_cred_alloc_blank(cred, GFP_KERNEL);
+		if (ret < 0) return -1;  // TODO internel call for another hook function
+	}
+	cred->security->mp4_flags = sid;
 	return 0;
 }
 
@@ -115,13 +126,15 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 {
 	
-	//if (!cred) 
-		return 0; // TODO
-	struct mp4_security * ptr = kmalloc(sizeof(struct mp4_security), gfp);
-	if (!ptr) 
-	{	
+	if (!cred) 
+	{
+		return -ENOENT; 
+	}
+	struct mp4_security * ptr = kzalloc(sizeof(struct mp4_security), gfp);
+	if (!ptr)
+	{
 		pr_err("memory allocation for blob failed..");
-		return -ENOMEM;
+		return -ENOENT;
 	}
 	cred->security = ptr; 
 	ptr->mp4_flags = MP4_NO_ACCESS;
@@ -137,14 +150,22 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
  */
 static void mp4_cred_free(struct cred *cred)
 {
-	if (!cred) return 0; // TODO
-	struct mp4_security * ptr = cred->security;
-	// BUG_ON defined in include/asm-generic/
-	// BUG_ON(cred->security && cred->security < PAGE_) 
-	if (!cred->security) return 0; 
+	if (!cred) 
+	{
+		pr_err("cred ptr is null when free..\n");
+		return -ENOENT;
+	}
 
+	struct mp4_security * ptr = cred->security;
+	// BUG_ON(cred->security && cred->security < PAGE_) 
+	if (!cred->security) 
+	{
+		pr_err("security struct of cred is null...\n");
+		return -ENOENT; 
+	}
 	cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
 	kfree(ptr);
+	return;
 }
 
 /**
@@ -158,21 +179,26 @@ static void mp4_cred_free(struct cred *cred)
 static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 			    gfp_t gfp)
 {
-	const struct mp4_security * old_tsec;
-	struct mp4_security * tsec;
-	tsec = NULL;
+	struct mp4_security * tsec = NULL;
 
-	if (!new || !old) return 0;// TODO new could be null
+	if (!new || !old) 
+	{
+		pr_err("no credential when prepare.\n");
+		return -ENOENT;// new could be null
+	}
 
-	old_tsec = old->security;
-	if (!old->security) return 0;
+	if (!old->security) 
+	{
+		return 0;
+	}
+	const struct mp4_security * old_tsec = old->security;
+	tsec = kmemdup(old_tsec, sizeof(struct mp4_security), gfp);
 
-	if (old_tsec) // bug
-		tsec = kmemdup(old_tsec, sizeof(struct mp4_security), gfp);
-	// else return 0; // old cred->sec is null
-
-	if (!tsec) return -ENOMEM;
-	// add the modification to the mp4_security struct TODO
+	if (!tsec) 
+	{
+		pr_err("kmem dump failed...\n");
+		return -ENOMEM;
+	}
 	
 	new->security = tsec;
 	return 0;
@@ -204,7 +230,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 				   const char **name, void **value, size_t *len)
 {
 	// init security for newly created inode
-	
+	// qstr, including the inode/dentry name? not sure what is it for. 
 	/*
 	struct mp4_security * new_tsec = kmalloc(sizeof(mp4_security), GFP_KERNEL);
 	if (!new_tsec) return -ENOMEM; // no mem for new mp4_sec
@@ -212,17 +238,24 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
  	
 	struct cred * cred = current_cred();
 	if (!cred) return -ENOMEM;
+/* TBD */
 	int newsid = 0;
 	size_t clen = 0;
 	char * context = NULL;
+	
+	if (!cred->security) 
+	{
+		pr_err("there is no security label for the current process credential");
+		int ret = mp4_cred_alloc_blank(cred, GFP_KERNEL);
+		if (ret < 0) return ret;
+	}
 	struct mp4_security * sec = cred->security;
-	if (!sec) return -ENOMEM;
-
 	if (sec->mp4_flags == MP4_TARGET_SID)
 	{
 		if (name) *name = XATTR_NAME_MP4;
 		if (value && len)
 		{
+			// inode name and value's pointer 
 			int rc = security_sid_to_context(newsid, &context, &clen);
 			if (rc)
 				return rc;
@@ -235,6 +268,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 			// clear the xattr name TODO
 			* name = NULL;
 			pr_err("input pointer for len and value...\n");
+			return -ENOENT; // this should not happen for value and len eithre to be null ptr
 		}
 	} 
 	
