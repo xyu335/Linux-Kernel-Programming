@@ -1,1 +1,11 @@
 #!/bin/bash
+
+setfattr -x security.mp4 /bin/cat
+
+setfattr -x security.mp4 /home
+ 
+setfattr -x security.mp4 /home/xy21
+
+setfattr -x security.mp4 /home/xy21/file.txt
+
+setfattr -x security.mp4 /home/xy21/file_wo.txt

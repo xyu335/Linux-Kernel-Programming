@@ -224,11 +224,10 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 }
 
 
-static inline int security_sid_to_context(int sid, char ** context, size_t * len)
+static inline void security_sid_to_context(int sid, char ** context, size_t * len)
 {
 	* context = "read-write";
 	* len = strlen(*context);
-	return 0;
 }
 
 /**
@@ -278,9 +277,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 		if (value && len)
 		{
 			// inode name and value's pointer 
-			int rc = security_sid_to_context(newsid, &context, &clen);
-			if (rc)
-				return rc;
+			security_sid_to_context(newsid, &context, &clen);
 			// xattr assignment
 			*value = context;
 			*len = clen;
@@ -415,6 +412,8 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	if (ret == -EACCES) 
 		// log the failure attempt
 		pr_err("The access is denied. ssid %d, osid %d, mask %d\n", ssid, osid ,mask);
+	else
+		printk(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
 	return ret;
 }
 

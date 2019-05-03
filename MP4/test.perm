@@ -1,9 +1,11 @@
 #!/bin/bash
 
-setfattr -n security.mp4 -v /bin/cat
+setfattr -n security.mp4 -v target /bin/cat
 
 setfattr -n security.mp4 -v dir /home
  
 setfattr -n security.mp4 -v dir /home/xy21
 
 setfattr -n security.mp4 -v read-only /home/xy21/file.txt
+
+setfattr -n security.mp4 -v write-only /home/xy21/file_wo.txt
