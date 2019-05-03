@@ -113,6 +113,7 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 		if (!ptr)
 		{	pr_err("no memory in allocating security label");
 			return -ENOMEM;}
+		cred->security = ptr;
 	}
 	struct mp4_security * ptr = (cred->security);
 	ptr->mp4_flags = sid;
@@ -253,7 +254,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	*/
  	
 	struct cred * cred = current_cred();
-	if (!cred) return -ENOMEM;
+	if (!cred) return -ENOENT;
 /* TBD */
 	int newsid = 0;
 	size_t clen = 0;
@@ -262,8 +263,10 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	if (!cred->security) 
 	{
 		pr_err("there is no security label for the current process credential");
-		int ret = mp4_cred_alloc_blank(cred, GFP_KERNEL);
-		if (ret < 0) return ret;
+		// int ret = mp4_cred_alloc_blank(cred, GFP_KERNEL); 
+		// TODO when creating the an inode, we should 
+		// if (ret < 0) return ret;
+		return -ENOENT; 
 	}
 	struct mp4_security * sec = cred->security;
 	if (sec->mp4_flags == MP4_TARGET_SID)
@@ -286,7 +289,9 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 			pr_err("input pointer for len and value...\n");
 			return -ENOENT; // this should not happen for value and len eithre to be null ptr
 		}
-	} 
+	}else {
+		pr_err("current cred->sec->mp4_flag is not target"); 
+	}
 	
 	return 0;
 }
