@@ -117,7 +117,9 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	}
 	struct mp4_security * ptr = (cred->security);
 	ptr->mp4_flags = sid;
+	
 	return 0;
+
 }
 
 /**
@@ -256,6 +258,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	struct cred * cred = current_cred();
 	if (!cred) return -ENOENT;
 /* TBD */
+	
 	int newsid = 0;
 	size_t clen = 0;
 	char * context = NULL;
@@ -309,7 +312,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 static int mp4_has_permission(int ssid, int osid, int mask)
 {
 
-	// check subject's permission 
+	// ``
 	
 
 	return 0;
@@ -330,12 +333,30 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 {
 	/* hook for inode check */ 
 	
-	/*
-	int ssid = current_security->security->mp4_label;
-	struct dentry * de = d_find_alias(inode);
+	// char path[256] = {0};
+	// struct dentry * path_de = get_alias(inode);
+	char * path = dentry_path_raw(inode);
+	if (mp4_should_skip_path(path))
+	{
+		return 0; 
+	} 
 	
-	int ret_dir_rec = dir_look(de, ssid, mask);
-	*/
+	struct mp4_security * sec= current_security->security;
+	int ssid = sec->mp4_flags;
+	struct dentry * de = d_find_alias(inode);
+	if (!de)
+	{
+		pr_err("inode dentry not existed..");
+		return -ENOENT;
+	}
+	
+	int osid = get_inode_sid(inode);
+	if (osid < 0) {
+		pr_err("the osid is an error code") 
+		return osid;
+	}
+	int ret = mp4_has_permission(ssid, osid, mask);
+	// int ret_dir_rec = dir_look(de, ssid, mask);
 	return 0;
 }
 
