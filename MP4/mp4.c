@@ -406,6 +406,9 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	}
 	int ret = mp4_has_permission(ssid, osid, mask);
 	// int ret_dir_rec = dir_look(de, ssid, mask);
+	if (ret == -EACCES) 
+		// log the failure attempt
+		pr_err("The access is denied. ssid %d, osid %d, mask %d\n", ssid, osid ,mask);
 	return ret;
 }
 

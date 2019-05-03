@@ -1,0 +1,3 @@
+#!/bin/bash
+
+setfattr -n security.mp4 -v 
