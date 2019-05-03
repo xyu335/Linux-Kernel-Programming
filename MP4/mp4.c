@@ -184,14 +184,25 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 {
 	struct mp4_security * tsec = NULL;
 
-	if (!new || !old) 
+	if (!new) 
 	{
 		pr_err("no credential when prepare.\n");
 		return -ENOENT;// new could be null
 	}
-
+  if (!old) 
+  {
+    pr_err("old cred is null ptr...");
+    return -ENOENT;
+  }
 	if (!old->security) 
 	{
+    old->security = kzalloc(sizeof(struct mp4_security), gfp);
+    if (!old->security) 
+    {
+      pr_err("old->security alloc blank failed..");
+      return -ENOMEM;
+    }
+    old->security->mp4_flags = MP4_NO_ACCESS;
 		return 0;
 	}
 	const struct mp4_security * old_tsec = old->security;
