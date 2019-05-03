@@ -7,7 +7,7 @@
 #include <linux/cred.h>
 #include <linux/dcache.h>
 #include <linux/binfmts.h>
-#include <linux/fs.h>  // for inode struct, /fs/xattr.c vfs_getxattr, // superblock enabled
+#include <linux/fs.h>  // for inode struct, /fs/xattr.c vfs_getxattr, // superblock enabled // file access control macros
 #include <linux/dcache.h> // for dentry and dput
 #include <linux/string.h> // strlen enabled
 #include <linux/xattr.h> // 
@@ -311,11 +311,56 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
  */
 static int mp4_has_permission(int ssid, int osid, int mask)
 {
-
-	// ``
+// #define NOACCESS (-1)
+	// mask not enabled
+	if (!mask) return 0;
 	
-
-	return 0;
+	// mask enabled, and subject is target 
+	if (osid == MP4_NO_ACCESS) 
+	{
+		// target no access, other is accessible
+		if (mask == MAY_ACCESS)
+		{
+			if (ssid == MP4_TARGET_SID) return -EACCES;
+			else return 0;
+		} 
+		else return -EACCES;
+	}else if (osid == MP4_READ_WRITE) 
+	{
+		// read, write, append by target
+		// read by ANYONE
+		if (mask == MAY_READ) return 0;
+		else if ((mask | MAY_WRITE| MAY_APPEND) == (MAY_READ | MAY_WRITE | MAY_APPEND))
+		{
+			if (ssid == MP4_TARGET_SID) return 0;
+			else return -EACCES;
+		}
+		else return -EACCES;
+	}else if (osid == MP4_READ_OBJ)
+	{
+		// read by ANYONE
+		if (mask == MAY_READ) return 0;
+		else return -EACCES;
+	}else if (osid == MP4_EXEC_OBJ)
+	{
+		// read. exec by ANYONE 
+		if ((mask | MAY_EXEC | MAY_READ)== MAY_EXEC | MAY_READ) return 0;
+		else return -EACCES;
+	}else if (osid == MP4_READ_DIR)
+	{
+		// read, exec, access by ANYONE
+		if ((mask | MAY_EXEC | MAY_READ | MAY_ACCESS) == MAY_EXEC | MAY_READ | MAY_ACCESS) return 0;
+		else return -EACCES;
+	}else if (osid == MP4_RW_DIR)
+	{
+		// may be modified by target program
+		if ((mask | MAY_WRITE | MAY_APPEND) == MAY_WRITE | MAY_APPEND)
+		{
+			if (osid == MP4_TARGET_SID) return 0;
+			else return -EACCES;
+		}else return -EACCES;
+	}
+	return -EACCES;
 }
 
 /**
@@ -333,31 +378,35 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 {
 	/* hook for inode check */ 
 	
-	// char path[256] = {0};
+	char path_buff[256] = {0};
+	int length = 256;
 	// struct dentry * path_de = get_alias(inode);
-	char * path = dentry_path_raw(inode);
+	char * path = dentry_path_raw(inode, path_buff, length);
 	if (mp4_should_skip_path(path))
 	{
 		return 0; 
 	} 
 	
-	struct mp4_security * sec= current_security->security;
+	struct cred * cred = current_cred();	
+	struct mp4_security * sec = cred->security;
 	int ssid = sec->mp4_flags;
-	struct dentry * de = d_find_alias(inode);
-	if (!de)
-	{
-		pr_err("inode dentry not existed..");
-		return -ENOENT;
-	}
 	
+	// if non target want to access directory
+	if (ssid != MP4_TARGET_SID)
+	{
+		if (S_ISDIR(inode->i_mode))
+			return 0; 
+		//return -1; // error code not found for access control
+	}
+
 	int osid = get_inode_sid(inode);
 	if (osid < 0) {
-		pr_err("the osid is an error code") 
+		pr_err("the osid is an error code");
 		return osid;
 	}
 	int ret = mp4_has_permission(ssid, osid, mask);
 	// int ret_dir_rec = dir_look(de, ssid, mask);
-	return 0;
+	return ret;
 }
 
 
