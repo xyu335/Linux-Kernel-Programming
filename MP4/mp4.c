@@ -381,8 +381,14 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	char path_buff[256] = {0};
 	int length = 256;
 	// struct dentry * path_de = get_alias(inode);
-	char * path = dentry_path_raw(inode, path_buff, length);
-	if (mp4_should_skip_path(path))
+	char * path_ret = dentry_path(inode, path_buff, length);
+	if (path_ret) 
+	{
+		// path_ret is null is the path is found without error
+		return -EACCES;
+	}
+	// path_buff is filled with path
+	if (mp4_should_skip_path(path_buff))
 	{
 		return 0; 
 	} 
