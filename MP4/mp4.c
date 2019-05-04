@@ -312,7 +312,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	if (osid == MP4_NO_ACCESS) 
 	{
 		// target no access, other is accessible
-		if ((mask | MAY_ACCESS) = MAY_ACCESS)
+		if ((mask | MAY_ACCESS) == MAY_ACCESS)
 		{
 			if (ssid == MP4_TARGET_SID) return -EACCES;
 			else return 0;
@@ -411,7 +411,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	// int ret_dir_rec = dir_look(de, ssid, mask);
 	if (ret == -EACCES) 
 		// log the failure attempt
-		if (printk_ratelimit()) pr_err("The access is denied. ssid %d, osid %d, mask %d\n", ssid, osid ,mask);
+		pr_err("The access is denied. path:%s ssid %d, osid %d, mask %d\n", path_buff, ssid, osid ,mask);
 	else
 		if (printk_ratelimit()) pr_err(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
 	// final dput
