@@ -69,7 +69,7 @@ static int get_inode_sid(struct inode *inode)
 	{
 		if (printk_ratelimit()) pr_err("get extend attr failed\n");  // TODO remove this when bug is fixed
 		dput(de);
-		return -1;
+		return MP4_NO_ACCESS; // retval should be 
 	}
 	// watch out for ERANGE error. 
 	// convert the attr ctx to sid 
@@ -311,7 +311,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	if (osid == MP4_NO_ACCESS) 
 	{
 		// target no access, other is accessible
-		if (mask == MAY_ACCESS)
+		if ((mask | MAY_ACCESS) = MAY_ACCESS)
 		{
 			if (ssid == MP4_TARGET_SID) return -EACCES;
 			else return 0;
@@ -404,12 +404,6 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	}
 
 	int osid = get_inode_sid(inode); // TODO 
-	if (osid < 0) {
-		if (printk_ratelimit()) pr_err("the osid is an error code");
-		if (path_de) dput(path_de);
-		return osid;
-	}
-	
 	
 	if (printk_ratelimit()) pr_info("inode is no skipable, path name: %s\, ssid osid mask: %d %d %dn", path_buff, ssid, osid, mask);
 	int ret = mp4_has_permission(ssid, osid, mask);
