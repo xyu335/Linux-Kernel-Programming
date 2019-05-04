@@ -50,7 +50,7 @@ static int get_inode_sid(struct inode *inode)
 	// de = i_sb->s_root;
 	struct dentry * de = d_find_alias(inode);
 	if (!de) {
-		pr_err("the dentry is null..\n");
+		if (printk_ratelimit()) pr_err("the dentry is null..\n");
 		return -ENOENT;
 	}
 
@@ -59,7 +59,7 @@ static int get_inode_sid(struct inode *inode)
 	if (!ctx) 
 	{
 		dput(de);
-		pr_err("memory is not allocated..\n");
+		if (printk_ratelimit()) pr_err("memory is not allocated..\n");
 		return -ENOMEM;
 	}
 	ctx[len] = '\0';
@@ -94,15 +94,14 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	// READ THE context of the binary file that launch the program
 	if (!bprm)
 	{
-		pr_err("bprm ptr null..\n");
+		if (printk_ratelimit()) pr_err("bprm ptr null..\n");
 		return -ENOENT;
 	}
 	struct inode * node = file_inode(bprm->file); // file_inode is inline function, return inode pointer other than error code
 	if (!node) return -ENOENT;
 
 	int sid = get_inode_sid(node);
-	// speed up the process
-	if (sid == MP4_NO_ACCESS) return -1; // TODO
+		
 	// rcu lock required, since only the task itself can modify the credentials of it
 	struct cred * cred = current_cred();
 	if (!cred) 
@@ -312,10 +311,10 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	if (osid == MP4_NO_ACCESS) 
 	{
 		// target no access, other is accessible
-		if ( ((mask | MAY_ACCESS) | MAY_ACCESS) == MAY_ACCESS)
+		if ((mask | MAY_ACCESS) == MAY_ACCESS)
 		{
 			if (ssid == MP4_TARGET_SID) return -EACCES;
-			else return 0;
+			else return 0; // user other than the target can access this
 		} 
 		else return -EACCES;
 	}else if (osid == MP4_READ_WRITE) 
