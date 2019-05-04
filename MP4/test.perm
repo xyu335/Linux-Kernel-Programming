@@ -1,5 +1,11 @@
 #!/bin/bash
 
+touch /home/xy21/file_exec.txt
+touch /home/xy21/file_rw.txt
+cp /home/xy21/CS423/*.txt ~/
+
+setfattr -n security.mp4 -v target /usr/bin/vim
+
 setfattr -n security.mp4 -v target /bin/cat
 
 setfattr -n security.mp4 -v dir /home
@@ -9,3 +15,27 @@ setfattr -n security.mp4 -v dir /home/xy21
 setfattr -n security.mp4 -v read-only /home/xy21/file.txt
 
 setfattr -n security.mp4 -v write-only /home/xy21/file_wo.txt
+
+setfattr -n security.mp4 -v read-write /home/xy21/file_rw.txt # if I launch the kernel
+
+setfattr -n security.mp4 -v exec /home/xy21/file_exec.txt # to test exec of a file 
+chmod +777 /home/xy21/file_exec.txt
+
+mkdir /home/xy21/testdir # temp dir
+touch /home/xy21/testdir/file_dw.txt 
+
+setfattr -n security.mp4 -v dir-write /home/xy21/testdir
+
+
+#test? 
+echo "cat test"
+echo "ro | wo | rw | exec | dw"
+cat /home/xy21/file_txt
+cat /home/xy21/file_wo.txt
+cat /home/xy21/file_rw.txt
+cat /home/xy21/file_exec.txt
+cat /home/xy21/testdir/file_dw.txt
+
+# vim test
+echo "vim test" 
+

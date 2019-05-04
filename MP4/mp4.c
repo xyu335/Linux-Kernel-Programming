@@ -38,7 +38,7 @@ static int get_inode_sid(struct inode *inode)
 	// determine if the xattr support is enabled
 	if (!inode->i_op->getxattr) 
 	{
-		pr_err("current security module does not have xattr support.\n");
+		// pr_err("current security module does not have xattr support.\n");
 		return -ENOENT;
 	}
 
@@ -58,6 +58,7 @@ static int get_inode_sid(struct inode *inode)
 	ctx = kmalloc(len + 1, GFP_KERNEL); // TODO, pitfall 
 	if (!ctx) 
 	{
+		dput(de);
 		pr_err("memory is not allocated..\n");
 		return -ENOMEM;
 	}
