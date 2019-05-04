@@ -50,7 +50,6 @@ static int get_inode_sid(struct inode *inode)
 	// de = i_sb->s_root;
 	struct dentry * de = d_find_alias(inode);
 	if (!de) {
-		if (printk_ratelimit()) pr_err("the dentry is null..\n");
 		return -ENOENT;
 	}
 
@@ -67,7 +66,6 @@ static int get_inode_sid(struct inode *inode)
 	//TODO  ret is -1 
 	if (ret <= 0) 
 	{
-		if (printk_ratelimit()) pr_err("get extend attr failed\n");  // TODO remove this when bug is fixed
 		kfree(ctx);
 		dput(de);
 		return MP4_NO_ACCESS; // retval should be 
@@ -75,7 +73,6 @@ static int get_inode_sid(struct inode *inode)
 	// watch out for ERANGE error. 
 	// convert the attr ctx to sid 
 	int sid = __cred_ctx_to_sid(ctx);
-	// if (printk_ratelimit()) pr_info("sid is generated for inode");
 	dput(de);
 	kfree(ctx);
 	return sid;
@@ -94,7 +91,6 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	// READ THE context of the binary file that launch the program
 	if (!bprm)
 	{
-		if (printk_ratelimit()) pr_err("bprm ptr null..\n");
 		return -ENOENT;
 	}
 	struct inode * node = file_inode(bprm->file); // file_inode is inline function, return inode pointer other than error code
@@ -106,7 +102,6 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	struct cred * cred = current_cred();
 	if (!cred) 
 	{	
-		if (printk_ratelimit()) pr_err("NO entrance in the bprm set cred hook");
 		return -ENOENT; // the credential of the current process (binary program) has no credential
 	}
 	
@@ -115,8 +110,7 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 		pr_err("SHOULD NOT HAPPEN: cred->sec allocation start in bprm hook");
 		struct mp4_security * ptr = kzalloc(sizeof(struct mp4_security), GFP_KERNEL);
 		if (!ptr)
-		{	pr_err("no memory in allocating security label");
-			return -ENOMEM;}
+			return -ENOMEM;
 		cred->security = ptr;
 	}
 	struct mp4_security * ptr = (cred->security);
@@ -141,7 +135,6 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 	struct mp4_security * ptr = kzalloc(sizeof(struct mp4_security), gfp);
 	if (!ptr)
 	{
-		pr_err("memory allocation for blob failed..");
 		return -ENOENT;
 	}
 	cred->security = ptr; 
@@ -160,7 +153,6 @@ static void mp4_cred_free(struct cred *cred)
 {
 	if (!cred) 
 	{
-		if (printk_ratelimit()) pr_err("cred ptr is null when free..\n");
 		return -ENOENT;
 	}
 
@@ -168,7 +160,6 @@ static void mp4_cred_free(struct cred *cred)
 	// BUG_ON(cred->security && cred->security < PAGE_) 
 	if (!cred->security) 
 	{
-		pr_err("security struct of cred is null...\n");
 		return -ENOENT; 
 	}
 	cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
@@ -191,21 +182,14 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 
 	if (!new) 
 	{
-		if (printk_ratelimit()) pr_err("no credential when prepare.\n");
 		return -ENOENT;// new could be null
 	}
-  	/*if (!old) 
-  	{
-    	pr_err("old cred is null ptr...");
-   	 	return -ENOENT;
- 	}
-	*/
+  	// if (!old) 
 	if (!old->security) 
 	{
     	new->security = kzalloc(sizeof(struct mp4_security), gfp);
     	if (!new->security) 
     	{
-      		pr_err("new->security alloc blank failed..");
       		return -ENOMEM;
     	}
     	tsec = (new->security);
@@ -263,13 +247,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	char * context = NULL;
 	
 	if (!cred->security) 
-	{
-		if (printk_ratelimit()) pr_err("there is no security label for the current process credential");
-		// int ret = mp4_cred_alloc_blank(cred, GFP_KERNEL); 
-		// TODO when creating the an inode, we should 
-		// if (ret < 0) return ret;
 		return -ENOENT; 
-	}
 	struct mp4_security * sec = cred->security;
 	if (sec->mp4_flags == MP4_TARGET_SID)
 	{
@@ -285,7 +263,6 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 		else
 		{
 			*name = NULL;
-			pr_err("input pointer for len and value...\n");
 			return -ENOENT; // this should not happen for value and len eithre to be null ptr
 		}
 	}
@@ -386,7 +363,6 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	// path_buff is filled with path
 	if (mp4_should_skip_path(path_ret))
 	{
-		if (printk_ratelimit()) pr_info("inode is SKIPABLE directory, path name: %s\n", path_ret);
 		if (path_de) dput(path_de);
 		return 0; 
 	} 
@@ -406,7 +382,6 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 
 	int osid = get_inode_sid(inode); // TODO 
 	
-	if (printk_ratelimit()) pr_info("inode is no skipable, path name: %s\, ssid osid mask: %d %d %dn", path_ret, ssid, osid, mask);
 	int ret = mp4_has_permission(ssid, osid, mask);
 	// int ret_dir_rec = dir_look(de, ssid, mask);
 	if (ret == -EACCES) 
