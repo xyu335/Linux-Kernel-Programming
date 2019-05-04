@@ -55,7 +55,7 @@ static int get_inode_sid(struct inode *inode)
 	}
 
 	int len = strlen(XATTR_NAME_MP4);
-	ctx = kmalloc(len + 1, GFP_KERNEL); // TODO, pitfall 
+	ctx = kzalloc(len + 1, GFP_KERNEL); // TODO, pitfall 
 	if (!ctx) 
 	{
 		dput(de);
@@ -68,6 +68,7 @@ static int get_inode_sid(struct inode *inode)
 	if (ret <= 0) 
 	{
 		if (printk_ratelimit()) pr_err("get extend attr failed\n");  // TODO remove this when bug is fixed
+		kfree(ctx);
 		dput(de);
 		return MP4_NO_ACCESS; // retval should be 
 	}
@@ -76,7 +77,7 @@ static int get_inode_sid(struct inode *inode)
 	int sid = __cred_ctx_to_sid(ctx);
 	// if (printk_ratelimit()) pr_info("sid is generated for inode");
 	dput(de);
-
+	kfree(ctx);
 	return sid;
 }
 
