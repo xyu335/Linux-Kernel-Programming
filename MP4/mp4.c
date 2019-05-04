@@ -71,7 +71,7 @@ static int get_inode_sid(struct inode *inode)
 	// watch out for ERANGE error. 
 	// convert the attr ctx to sid 
 	int sid = __cred_ctx_to_sid(ctx);
-	pr_info("sid is generated for inode");
+	// if (printk_ratelimit()) pr_info("sid is generated for inode");
 	dput(de);
 
 	return sid;
@@ -97,18 +97,19 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	if (!node) return -ENOENT;
 
 	int sid = get_inode_sid(node);
+	// speed up the process
 	if (sid == MP4_NO_ACCESS) return -1; // TODO
 	// rcu lock required, since only the task itself can modify the credentials of it
 	struct cred * cred = current_cred();
 	if (!cred) 
 	{	
-		pr_err("NO entrance in the bprm set cred hook");
+		if (printk_ratelimit()) pr_err("NO entrance in the bprm set cred hook");
 		return -ENOENT; // the credential of the current process (binary program) has no credential
 	}
 	
 	if (!cred->security) 
 	{
-		pr_info("cred->sec allocation start in bprm hook");
+		pr_err("SHOULD NOT HAPPEN: cred->sec allocation start in bprm hook");
 		struct mp4_security * ptr = kzalloc(sizeof(struct mp4_security), GFP_KERNEL);
 		if (!ptr)
 		{	pr_err("no memory in allocating security label");
@@ -117,9 +118,7 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	}
 	struct mp4_security * ptr = (cred->security);
 	ptr->mp4_flags = sid;
-	
 	return 0;
-
 }
 
 /**
@@ -158,7 +157,7 @@ static void mp4_cred_free(struct cred *cred)
 {
 	if (!cred) 
 	{
-		pr_err("cred ptr is null when free..\n");
+		if (printk_ratelimit()) pr_err("cred ptr is null when free..\n");
 		return -ENOENT;
 	}
 
@@ -189,7 +188,7 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 
 	if (!new) 
 	{
-		pr_err("no credential when prepare.\n");
+		if (printk_ratelimit()) pr_err("no credential when prepare.\n");
 		return -ENOENT;// new could be null
 	}
   	/*if (!old) 
@@ -253,10 +252,8 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	struct mp4_security * new_tsec = kmalloc(sizeof(mp4_security), GFP_KERNEL);
 	if (!new_tsec) return -ENOMEM; // no mem for new mp4_sec
 	*/
- 	
 	struct cred * cred = current_cred();
 	if (!cred) return -ENOENT;
-/* TBD */
 	
 	int newsid = 0;
 	size_t clen = 0;
@@ -264,7 +261,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	
 	if (!cred->security) 
 	{
-		pr_err("there is no security label for the current process credential");
+		if (printk_ratelimit()) pr_err("there is no security label for the current process credential");
 		// int ret = mp4_cred_alloc_blank(cred, GFP_KERNEL); 
 		// TODO when creating the an inode, we should 
 		// if (ret < 0) return ret;
@@ -276,23 +273,18 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 		if (name) *name = XATTR_NAME_MP4;
 		if (value && len)
 		{
-			// inode name and value's pointer 
+			// default value to be read-write 
 			security_sid_to_context(newsid, &context, &clen);
-			// xattr assignment
 			*value = context;
 			*len = clen;
 		}
 		else
 		{
-			// clear the xattr name TODO
-			* name = NULL;
+			*name = NULL;
 			pr_err("input pointer for len and value...\n");
 			return -ENOENT; // this should not happen for value and len eithre to be null ptr
 		}
-	}else {
-		pr_err("current cred->sec->mp4_flag is not target"); 
 	}
-	
 	return 0;
 }
 
@@ -377,16 +369,21 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	
 	char path_buff[256] = {0};
 	int length = 256;
-	// struct dentry * path_de = get_alias(inode);
-	char * path_ret = dentry_path(inode, path_buff, length);
-	if (path_ret) 
+	struct dentry * path_de = d_find_alias(inode);
+	if (!path_de) return -EACCES;
+
+	char * path_ret = dentry_path_raw(path_de, path_buff, length);
+	if (!path_ret) 
 	{
 		// path_ret is null is the path is found without error
+		if (path_de) dput(path_de);
 		return -EACCES;
 	}
 	// path_buff is filled with path
 	if (mp4_should_skip_path(path_buff))
 	{
+		if (printk_ratelimit()) pr_info("inode is SKIPABLE directory, path name: %s\n", path_buff);
+		if (path_de) dput(path_de);
 		return 0; 
 	} 
 	
@@ -398,49 +395,30 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	if (ssid != MP4_TARGET_SID)
 	{
 		if (S_ISDIR(inode->i_mode))
+			if (path_de) dput(path_de);
 			return 0; 
 		//return -1; // error code not found for access control
 	}
 
 	int osid = get_inode_sid(inode);
 	if (osid < 0) {
-		pr_err("the osid is an error code");
+		if (printk_ratelimit()) pr_err("the osid is an error code");
+		if (path_de) dput(path_de);
 		return osid;
 	}
+	
+	
+	if (printk_ratelimit()) pr_info("inode is no skipable, path name: %s\, ssid osid mask: %d %d %dn", path_buff, ssid, osid, mask);
 	int ret = mp4_has_permission(ssid, osid, mask);
 	// int ret_dir_rec = dir_look(de, ssid, mask);
 	if (ret == -EACCES) 
 		// log the failure attempt
-		pr_err("The access is denied. ssid %d, osid %d, mask %d\n", ssid, osid ,mask);
+		if (printk_ratelimit()) pr_err("The access is denied. ssid %d, osid %d, mask %d\n", ssid, osid ,mask);
 	else
-		printk(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
+		if (printk_ratelimit()) pr_err(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
+	// final dput
+	if (path_de) dput(path_de);
 	return ret;
-}
-
-
-// 
-static int dir_look(struct dentry * de, int ssid, int mask)
-{
-	const char * dname = (de->d_name).name;
-	// 1 for skippable
-	int skip = mp4_should_skip_path(dname); 
-	int perm = -EACCES;
-
-	if (!skip) 
-	{
-		// if (de->d_parent)  TODO 
-		int ret_recursive = dir_look(de->d_parent, ssid, mask);
-	}
-	else
-	{
-		// has-permission
-		struct inode * dir_inode = de->d_inode;
-		
-		int osid = get_inode_sid(dir_inode); // object sid
-		perm = mp4_has_permission(ssid, osid, mask);
-	}
-	
-	return perm;
 }
 
 
