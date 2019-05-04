@@ -312,7 +312,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	if (osid == MP4_NO_ACCESS) 
 	{
 		// target no access, other is accessible
-		if ((mask | MAY_ACCESS) == MAY_ACCESS)
+		if ( ((mask | MAY_ACCESS) | MAY_ACCESS) == MAY_ACCESS)
 		{
 			if (ssid == MP4_TARGET_SID) return -EACCES;
 			else return 0;
