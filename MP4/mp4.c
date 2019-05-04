@@ -383,9 +383,9 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 		return -EACCES;
 	}
 	// path_buff is filled with path
-	if (mp4_should_skip_path(path_buff))
+	if (mp4_should_skip_path(path_ret))
 	{
-		if (printk_ratelimit()) pr_info("inode is SKIPABLE directory, path name: %s\n", path_buff);
+		if (printk_ratelimit()) pr_info("inode is SKIPABLE directory, path name: %s\n", path_ret);
 		if (path_de) dput(path_de);
 		return 0; 
 	} 
@@ -405,12 +405,12 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 
 	int osid = get_inode_sid(inode); // TODO 
 	
-	if (printk_ratelimit()) pr_info("inode is no skipable, path name: %s\, ssid osid mask: %d %d %dn", path_buff, ssid, osid, mask);
+	if (printk_ratelimit()) pr_info("inode is no skipable, path name: %s\, ssid osid mask: %d %d %dn", path_ret, ssid, osid, mask);
 	int ret = mp4_has_permission(ssid, osid, mask);
 	// int ret_dir_rec = dir_look(de, ssid, mask);
 	if (ret == -EACCES) 
 		// log the failure attempt
-		pr_err("The access is denied. path:%s ssid %d, osid %d, mask %d\n", path_buff, ssid, osid ,mask);
+		pr_err("The access is denied. path:%s ssid %d, osid %d, mask %d\n", path_ret, ssid, osid ,mask);
 	else
 		if (printk_ratelimit()) pr_err(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
 	// final dput
