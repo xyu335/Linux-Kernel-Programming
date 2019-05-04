@@ -64,8 +64,10 @@ static int get_inode_sid(struct inode *inode)
 	}
 	ctx[len] = '\0';
 	ssize_t ret = inode->i_op->getxattr(de, XATTR_NAME_MP4, ctx, len);
+	//TODO  ret is -1 
 	if (ret <= 0) 
 	{
+		if (printk_ratelimit()) pr_err("get extend attr failed\n");  // TODO remove this when bug is fixed
 		dput(de);
 		return -1;
 	}
@@ -401,7 +403,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 		//return -1; // error code not found for access control
 	}
 
-	int osid = get_inode_sid(inode);
+	int osid = get_inode_sid(inode); // TODO 
 	if (osid < 0) {
 		if (printk_ratelimit()) pr_err("the osid is an error code");
 		if (path_de) dput(path_de);

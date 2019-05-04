@@ -2,6 +2,8 @@
 
 setfattr -x security.mp4 /bin/cat
 
+setfattr -x security.mp4 /usr/bin/vim
+
 setfattr -x security.mp4 /home
  
 setfattr -x security.mp4 /home/xy21
@@ -14,9 +16,9 @@ setfattr -x security.mp4 /home/xy21/file_rw.txt
 
 setfattr -x security.mp4 /home/xy21/file_exec.txt
 
-setfattr -x security.mp4 /home/xy21/file_dw.txt
+#setfattr -x security.mp4 /home/xy21/testdir/file_dw.txt
 
 setfattr -x security.mp4 /home/xy21/testdir
 
-rm /home/xy21/file_*
+rm /home/xy21/file*txt
 rm -rf /home/xy21/testdir

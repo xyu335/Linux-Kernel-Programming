@@ -2,7 +2,7 @@
 
 touch /home/xy21/file_exec.txt
 touch /home/xy21/file_rw.txt
-cp /home/xy21/CS423/*.txt ~/
+cp /home/xy21/CS423/MP4/*.txt /home/xy21/
 
 setfattr -n security.mp4 -v target /usr/bin/vim
 
