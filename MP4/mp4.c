@@ -273,7 +273,8 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	struct mp4_security * sec = cred->security;
 	if (sec->mp4_flags == MP4_TARGET_SID)
 	{
-		if (name) *name = XATTR_NAME_MP4;
+		// if (name) *name = XATTR_NAME_MP4;
+		if (name) *name = XATTR_MP4_SUFFIX;
 		if (value && len)
 		{
 			// default value to be read-write 
