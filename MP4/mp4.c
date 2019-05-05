@@ -52,9 +52,10 @@ static int get_inode_sid(struct inode *inode)
 	if (!de) {
 		return -ENOENT;
 	}
-
-	int len = strlen(XATTR_NAME_MP4);
-	ctx = kzalloc(len + 1, GFP_KERNEL); // TODO, pitfall 
+	#define MAX_CTX_LEN (20)
+	int len = strlen(MAX_CTX_LEN);
+	#undef MAx_CTX_LEN
+	ctx = kzalloc(len, GFP_KERNEL); // TODO, pitfall 
 	if (!ctx) 
 	{
 		dput(de);
@@ -97,7 +98,6 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	if (!node) return -ENOENT;
 
 	int sid = get_inode_sid(node);
-		
 	// rcu lock required, since only the task itself can modify the credentials of it
 	struct cred * cred = current_cred();
 	if (!cred) 
@@ -114,7 +114,7 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 		cred->security = ptr;
 	}
 	struct mp4_security * ptr = (cred->security);
-	ptr->mp4_flags = sid;
+	if (sid== MP4_TARGET_SID) ptr->mp4_flags = sid;
 	return 0;
 }
 
@@ -388,7 +388,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 		// log the failure attempt
 		pr_err("The access is denied. path:%s ssid %d, osid %d, mask %d\n", path_ret, ssid, osid ,mask);
 	else
-		if (printk_ratelimit()) pr_err(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
+		pr_err(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
 	// final dput
 	if (path_de) dput(path_de);
 	return ret;
