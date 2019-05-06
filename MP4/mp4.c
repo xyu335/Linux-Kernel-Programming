@@ -253,7 +253,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 // #define NOACCESS (-1)
 	// mask not enabled
 	if (!mask) return 0;
-	mask &= 15; // efficient bit mask
+	mask = (mask & 15); // efficient bit mask
 
 	// mask enabled, and subject is target 
 	if (osid == MP4_NO_ACCESS) 
@@ -261,7 +261,11 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 		// target no access, other is accessible
 		if ((mask | MAY_ACCESS) == MAY_ACCESS)
 		{
-			if (ssid == MP4_TARGET_SID) return -EACCES;
+			if (ssid == MP4_TARGET_SID) 
+			{
+				pr_err("TARGET hit the no access %d %d %d\n", ssid, osid, mask);
+				return -EACCES;
+			}
 			else return 0; // user other than the target can access this
 		} 
 		else return -EACCES;
@@ -318,7 +322,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 {
 	/* hook for inode check */ 
 	
-	char path_buff  = kzalloc(256, GFP_KERNEL);
+	char * path_buff  = kzalloc(256, GFP_KERNEL);
 	if (!path_buff) 
 		return -ENOMEM;
 	int length = 256;
