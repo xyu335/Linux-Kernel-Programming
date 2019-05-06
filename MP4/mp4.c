@@ -253,7 +253,8 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 // #define NOACCESS (-1)
 	// mask not enabled
 	if (!mask) return 0;
-	
+	mask &= 15; // efficient bit mask
+
 	// mask enabled, and subject is target 
 	if (osid == MP4_NO_ACCESS) 
 	{
@@ -317,7 +318,9 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 {
 	/* hook for inode check */ 
 	
-	char path_buff[256] = {0};
+	char path_buff  = kzalloc(256, GFP_KERNEL);
+	if (!path_buff) 
+		return -ENOMEM;
 	int length = 256;
 	struct dentry * path_de = d_find_alias(inode);
 	if (!path_de) return -EACCES;
@@ -327,12 +330,14 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	{
 		// path_ret is null is the path is found without error
 		if (path_de) dput(path_de);
+		kfree(path_buff);
 		return -EACCES;
 	}
 	// path_buff is filled with path
 	if (mp4_should_skip_path(path_ret))
 	{
 		if (path_de) dput(path_de);
+		kfree(path_buff);
 		return 0; 
 	} 
 	
@@ -340,28 +345,27 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	struct mp4_security * sec = cred->security;
 	int ssid = sec->mp4_flags;
 	
-	int osid = get_inode_sid(inode); // TODO 
-	pr_err("sid got for path %s: ssid %d, osid %d, mask %d",path_ret, ssid, osid, mask);
 	// if non target want to access directory
 	if (ssid != MP4_TARGET_SID)
 	{
 		if (S_ISDIR(inode->i_mode))
 		{	
 			if (path_de) dput(path_de);
+			kfree(path_buff);
 			return 0;  // BUG for clause
 		}
 	}
-	// TODO TODO move 343, 344 back here
-
+	int osid = get_inode_sid(inode); // TODO 
 	int ret = mp4_has_permission(ssid, osid, mask);
 	// int ret_dir_rec = dir_look(de, ssid, mask);
 	if (ret == -EACCES) 
 		// log the failure attempt
 		pr_err("The access is denied. path:%s ssid %d, osid %d, mask %d\n", path_ret, ssid, osid ,mask);
-	else
-		pr_err(KERN_DEBUG "The access is granted, ssid %d, osid %d, mask %d", ssid, osid, mask);
+	// else
+		// if (printk_ratelimit()) pr_err("The access is granted,path: %s ssid %d, osid %d, mask %d", ssid, osid, mask);
 	// final dput
 	if (path_de) dput(path_de);
+	kfree(path_buff);
 	return ret;
 }
 
