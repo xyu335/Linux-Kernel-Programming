@@ -3,6 +3,7 @@
 # remove label for target 
 setfattr -x security.mp4 /bin/cat
 setfattr -x security.mp4 /usr/bin/vim
+setfattr -x security.mp4 /bin/ls
 
 # remove label for object
 setfattr -x security.mp4 /home 

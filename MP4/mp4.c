@@ -282,7 +282,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 		// read, write, append by target
 		// read by ANYONE
 		if (mask == MAY_READ) return 0;
-		else if ((mask | MAY_WRITE| MAY_APPEND) == (MAY_READ | MAY_WRITE | MAY_APPEND))
+		else if ((mask | MAY_READ | MAY_WRITE| MAY_APPEND) == (MAY_READ | MAY_WRITE | MAY_APPEND))
 		{
 			if (ssid == MP4_TARGET_SID) return 0;
 			else return -EACCES;
@@ -310,17 +310,19 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 		// may be modified by target program
 		if (ssid == MP4_TARGET_SID)
 		{
+			// TODO TODO exec access for the directory
+			/*
 			if ((mask | MAY_ACCESS | MAY_READ) == MAY_ACCESS | MAY_READ)
 				return 0;
 			else 
 				return -EACCES; // TODO 
+			*/
+			return 0;
 		}
-		// ssid is not a target, then deny
-		return -EACCES; 
 	}
 	else
 	{
-		pr_err("THIS SHOULD NOT HAPPEN, OSID EXCEPTION %d %d %d", osid, ssid, mask); 
+		pr_err("THIS SHOULD NOT HAPPEN, OSID EXCEPTION, THE OSID OF THE OBJECT COULD BE LIKE TARGET %d %d %d", osid, ssid, mask); 
 		return -EACCES; // TODO pitfall for nshadow
 	}
 }
@@ -348,7 +350,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	if (!cred) return -EACCES;
 
 	
-	mask &= (MAY_EXEC | MAY_WRITE | MAY_READ | MAY_APPEND); // current efficient bit
+	mask &= (MAY_EXEC | MAY_WRITE | MAY_READ | MAY_APPEND | MAY_ACCESS); // current efficient bit
 	if (!mask) return 0;
 
 	int length = 256;

@@ -1,0 +1,21 @@
+#!/bin/sh
+
+ro="read-only"
+wo="write-only"
+rw="read-write"
+ex="exec"
+
+setfattr -n security.mp4 -v target /usr/bin/passwd
+
+# set xattr for path 
+# setfattr -n security.mp4 -v foo foobar
+
+setfattr -n security.mp4 -v dir /etc
+setfattr -n security.mp4 -v dir /fs
+setfattr -n security.mp4 -v dir /filesystems
+
+setfattr -n security.mp4 -v exec /etc/nsswitch.conf
+setfattr -n security.mp4 -v read-only /etc/locale.alias
+
+
+

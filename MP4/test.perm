@@ -4,13 +4,14 @@ f_exec="/home/xy21/file_exec.txt"
 f_rw="/home/xy21/file_rw.txt"
 f_wo="/home/xy21/file_wo.txt"
 f_ro="/home/xy21/file_ro.txt"
-d_dw="home/xy21/testdir"
+d_dw="/home/xy21/testdir"
 f_dw="/home/xy21/testdir/file_dw.txt"
 f_nu="/home/xy21/file.txt"
 
 # currently two directories are being test
 f_tar_1="/usr/bin/vim"
 f_tar_2="/bin/cat"
+f_tar_3="/bin/ls"
 
 touch $f_exec
 touch $f_rw
@@ -26,6 +27,7 @@ echo "null file" > $f_nu
 # label target
 setfattr -n security.mp4 -v target /usr/bin/vim
 setfattr -n security.mp4 -v target /bin/cat
+setfattr -n security.mp4 -v target $f_tar_3
 
 # test dir
 mkdir $d_dw
@@ -42,6 +44,7 @@ setfattr -n security.mp4 -v write-only $f_wo
 setfattr -n security.mp4 -v read-write $f_rw
 setfattr -n security.mp4 -v exec $f_exec # to test exec of a file 
 setfattr -n security.mp4 -v dir-write $d_dw
+setfattr -n security.mp4 -v read-only $f_dw
 echo "dir write file" > $d_dw
 chmod +777 $f_exec
 
