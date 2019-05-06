@@ -218,9 +218,6 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	struct cred * cred = current_cred();
 	if (!cred) return -ENOENT;
 	
-	// size_t clen = 0;
-	// char * context = NULL;
-	
 	if (!cred->security) 
 		return -ENOENT; 
 	struct mp4_security * sec = cred->security;
@@ -230,18 +227,13 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 		if (name) *name = XATTR_MP4_SUFFIX;
 		if (value && len)
 		{
-			// default value to be read-write 
-			// security_sid_to_context(newsid, &context, &clen);
-			// context = "read-write";
 			*value = "read-write";
 			*len = strlen(*value);
 		}
 		/*
 		else
-		{
 			*name = NULL;
-			return -ENOENT; // TODO this should not happen for value and len eithre to be null ptr
-		} */
+			return -ENOENT; // TODO this should not happen for value and len eithre to be null ptr*/
 	}
 	return 0;
 }
@@ -348,18 +340,19 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	struct mp4_security * sec = cred->security;
 	int ssid = sec->mp4_flags;
 	
+	int osid = get_inode_sid(inode); // TODO 
+	pr_err("sid got for path %s: ssid %d, osid %d, mask %d",path_ret, ssid, osid, mask);
 	// if non target want to access directory
 	if (ssid != MP4_TARGET_SID)
 	{
 		if (S_ISDIR(inode->i_mode))
+		{	
 			if (path_de) dput(path_de);
-			// pr_err("%s is directory, and current process is not target.. %d", path_ret, )
-			return 0; 
-		//return -1; // error code not found for access control
+			return 0;  // BUG for clause
+		}
 	}
+	// TODO TODO move 343, 344 back here
 
-	int osid = get_inode_sid(inode); // TODO 
-	pr_err("sid got for path %s: ssid %d, osid %d, mask %d",path_ret, ssid, osid, mask);
 	int ret = mp4_has_permission(ssid, osid, mask);
 	// int ret_dir_rec = dir_look(de, ssid, mask);
 	if (ret == -EACCES) 
