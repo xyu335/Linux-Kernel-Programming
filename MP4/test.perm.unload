@@ -1,24 +1,19 @@
 #!/bin/bash
 
+# remove label for target 
 setfattr -x security.mp4 /bin/cat
-
 setfattr -x security.mp4 /usr/bin/vim
 
-setfattr -x security.mp4 /home
- 
+# remove label for object
+setfattr -x security.mp4 /home 
 setfattr -x security.mp4 /home/xy21
-
 setfattr -x security.mp4 /home/xy21/file.txt
-
 setfattr -x security.mp4 /home/xy21/file_wo.txt
-
 setfattr -x security.mp4 /home/xy21/file_rw.txt
-
 setfattr -x security.mp4 /home/xy21/file_exec.txt
-
-#setfattr -x security.mp4 /home/xy21/testdir/file_dw.txt
-
+setfattr -x security.mp4 /home/xy21/testdir/file_dw.txt
 setfattr -x security.mp4 /home/xy21/testdir
 
+# remove object
 rm /home/xy21/file*txt
 rm -rf /home/xy21/testdir

@@ -151,7 +151,7 @@ static void mp4_cred_free(struct cred *cred)
 }
 
 /**
-/**
+ *
  * mp4_cred_prepare - Prepare new credentials for modification
  *
  * @new: the new credentials
@@ -301,7 +301,10 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	}else if (osid == MP4_READ_DIR)
 	{
 		// read, exec, access by ANYONE
-		else return -EACCES;
+		if ((mask | MAY_READ | MAY_EXEC | MAY_ACCESS) == (MAY_READ | MAY_EXEC | MAY_ACCESS))
+			return 0;
+		else 
+			return -EACCES;
 	}else if (osid == MP4_RW_DIR)
 	{
 		// may be modified by target program
