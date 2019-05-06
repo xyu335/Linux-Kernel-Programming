@@ -192,12 +192,6 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 }
 
 
-static inline void security_sid_to_context(int sid, char ** context, size_t * len)
-{
-	* context = "read-write";
-	* len = strlen(*context);
-}
-
 /**
  * mp4_inode_init_security - Set the security attribute of a newly created inode
  *
@@ -288,13 +282,22 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	}else if (osid == MP4_RW_DIR)
 	{
 		// may be modified by target program
-		if ((mask | MAY_WRITE | MAY_APPEND | MAY_READ) == MAY_WRITE | MAY_APPEND | MAY_READ)
+		
+		if (ssid == MP4_TARGET_SID)
 		{
-			if (osid == MP4_TARGET_SID) return 0;
-			else return -EACCES;
-		}else return -EACCES;
+			if ((mask | MAY_ACCESS | MAY_READ) == MAY_ACCESS | MAY_READ)
+				return 0;
+			else 
+				return -EACCES; // TODO 
+		}
+		// ssid is not a target, then deny
+		return -EACCES; 
 	}
-	return 0; // TODO pitfall for nshadow
+	else
+	{
+		pr_err("THIS SHOULD NOT HAPPEN, OSID EXCEPTION %d %d %d", osid, ssid, mask); 
+		return -EACCES; // TODO pitfall for nshadow
+	}
 }
 
 /**
@@ -328,14 +331,16 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 
 	if (!path_ret) 
 	{
-		if (path_de) dput(path_de);
+		if (path_de) 
+			dput(path_de);
 		kfree(path_buff);
 		return -EACCES;
 	}
 
 	if (mp4_should_skip_path(path_ret))
 	{
-		if (path_de) dput(path_de);
+		if (path_de) 
+			dput(path_de);
 		kfree(path_buff);
 		return 0; 
 	} 
@@ -351,8 +356,13 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	{
 		if (S_ISDIR(inode->i_mode))
 			ret = 0;  // BUG for clause
-		else 
-			ret = -EACCES;
+		else
+ 		{	
+			if (mp4_has_permission(ssid, osid, mask) == 0)
+				ret = 0;
+			else 
+				ret = -EACCES;
+		}
 	}
 	else
 	{
@@ -390,7 +400,7 @@ static struct security_hook_list mp4_hooks[] = {
 	 */
 	LSM_HOOK_INIT(bprm_set_creds, mp4_bprm_set_creds),
 
-	/* credentials handling and preparation */
+	/* credent`ials handling and preparation */
 	LSM_HOOK_INIT(cred_alloc_blank, mp4_cred_alloc_blank),
 	LSM_HOOK_INIT(cred_free, mp4_cred_free),
 	LSM_HOOK_INIT(cred_prepare, mp4_cred_prepare)
