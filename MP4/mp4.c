@@ -53,7 +53,6 @@ static int get_inode_sid(struct inode *inode)
 		dput(de);
 		return -ENOMEM;
 	}
-	ctx[len-1] = '\0';
 	ssize_t ret = inode->i_op->getxattr(de, XATTR_NAME_MP4, ctx, len);
 	//TODO  ret is -1 
 	if (ret < 0)  // bug, ret == 0 represent 
@@ -85,11 +84,10 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	struct inode * node = file_inode(bprm->file); // file_inode is inline function, return inode pointer other than error code
 	if (!node) 
 		return -ENOENT;
-	int sid = get_inode_sid(node);
-	// rcu lock required, since only the task itself can modify the credentials of it
 	struct cred * cred = current_cred();
 	if (!cred) 
 		return -ENOENT; // the credential of the current process (binary program) has no credential
+	
 	struct mp4_security * ptr = cred->security;	
 	if (!cred->security) 
 	{
@@ -97,6 +95,8 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 		if (!ptr)
 			return -ENOMEM;
 	}
+	
+	int sid = get_inode_sid(node);
 	if (sid == MP4_TARGET_SID) ptr->mp4_flags = sid;
 	return 0;
 }
@@ -112,14 +112,13 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 {
 	
 	if (!cred) 
-	{
 		return -ENOENT; 
-	}
+	
 	struct mp4_security * ptr = kzalloc(sizeof(struct mp4_security), gfp);
+	
 	if (!ptr)
-	{
 		return -ENOMEM;
-	}
+	
 	cred->security = ptr; 
 	ptr->mp4_flags = MP4_NO_ACCESS;
 	return 0;
@@ -135,15 +134,13 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 static void mp4_cred_free(struct cred *cred)
 {
 	if (!cred) 
-	{
 		return -ENOENT;
-	}
+	
 	struct mp4_security * ptr = cred->security;
 	// BUG_ON(cred->security && cred->security < PAGE_SIZE) 
 	if (!ptr) 
-	{
 		return 0; // TODO if no security, then just return success 
-	}
+
 	// cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
 	cred->security = NULL;
 	kfree(ptr);
@@ -164,17 +161,15 @@ static int mp4_cred_prepare(struct cred *new, const struct cred *old,
 	struct mp4_security * tsec = NULL;
 
 	if (!new) 
-	{
 		return -ENOENT;// new could be null
-	}
+
 	if (!old->security) 
 	{
-    	new->security = kzalloc(sizeof(struct mp4_security), gfp);
-    	if (!new->security) 
-    	{
+    	tsec = kzalloc(sizeof(struct mp4_security), gfp);
+    	if (!tsec) 
       		return -ENOMEM;
-    	}
-    	tsec = (new->security);
+		
+		new->security = tsec;
 		tsec->mp4_flags = MP4_NO_ACCESS;
 		return 0;
 	}
@@ -210,25 +205,48 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 				   const char **name, void **value, size_t *len)
 {
 	struct cred * cred = current_cred();
-	if (!cred) return -ENOENT;
+	
+	if (!cred) return -EOPNOTSUPP;
 	
 	if (!cred->security) 
-		return -ENOENT; 
+		return -EOPNOTSUPP; 
+	
+	if (!inode || !dir) 
+		return -EOPNOTSUPP;
+
 	struct mp4_security * sec = cred->security;
+
+	if (name) 
+		*name = XATTR_MP4_SUFFIX;
+	else 
+		return -ENOMEM;
+	
 	if (sec->mp4_flags == MP4_TARGET_SID)
 	{
-		// if (name) *name = XATTR_NAME_MP4;
-		if (name) *name = XATTR_MP4_SUFFIX;
-		if (value && len)
+		if (!value || !len) 
+			return -ENOMEM;
+
+		else
 		{
-			*value = "read-write";
-			*len = strlen(*value);
+			if (S_ISDIR(inode->i_mode))
+			{	
+				*value = "dir-write";
+				*len = 10;
+			}
+			else 
+			{	
+				*value = "read-write";
+				*len = 11;
+			}// TODO pitfall, where is the string stored
 		}
 		/*
 		else
 			*name = NULL;
 			return -ENOENT; // TODO this should not happen for value and len eithre to be null ptr*/
 	}
+	// if mp4 is default one, then the inode should be default/ null 
+	else 
+		return -EOPNOTSUPP;
 	return 0;
 }
 
@@ -245,6 +263,8 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 static int mp4_has_permission(int ssid, int osid, int mask)
 {
 	// mask enabled, and subject is target 
+	if (!mask) return 0;
+
 	if (osid == MP4_NO_ACCESS) 
 	{
 		if (ssid == MP4_TARGET_SID) 
@@ -282,7 +302,6 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	}else if (osid == MP4_RW_DIR)
 	{
 		// may be modified by target program
-		
 		if (ssid == MP4_TARGET_SID)
 		{
 			if ((mask | MAY_ACCESS | MAY_READ) == MAY_ACCESS | MAY_READ)
@@ -319,13 +338,21 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	struct dentry * path_de = d_find_alias(inode);
 	if (!path_de) return -EACCES;
 
+	struct cred * cred = current_cred();	
+	if (!cred) return -EACCES;
+
+	
 	mask &= (MAY_EXEC | MAY_WRITE | MAY_READ | MAY_APPEND); // current efficient bit
 	if (!mask) return 0;
 
 	int length = 256;
 	char * path_buff  = kzalloc(length, GFP_KERNEL); // TODO, gfp bit
 	if (!path_buff) 
-		return -ENOMEM;
+	{	
+		if (path_de) 
+			dput(path_de);
+		return -EACCES;
+	}
 
 	char * path_ret = dentry_path_raw(path_de, path_buff, length);
 
@@ -345,14 +372,22 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 		return 0; 
 	} 
 	
-	struct cred * cred = current_cred();	
 	struct mp4_security * sec = cred->security;
+	if (!sec) return -EACCES;
 	int ssid = sec->mp4_flags;
 	
 	int ret = 0;
 	int osid = get_inode_sid(inode); // TODO 
 	
-	if (ssid != MP4_TARGET_SID)
+	if (ssid == MP4_TARGET_SID)
+	{
+		// ssid == target_sid
+		if (mp4_has_permission(ssid, osid, mask) == 0)
+			ret = 0; // return value
+		else 
+			ret = -EACCES;
+	}
+	else
 	{
 		if (S_ISDIR(inode->i_mode))
 			ret = 0;  // BUG for clause
@@ -363,14 +398,6 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 			else 
 				ret = -EACCES;
 		}
-	}
-	else
-	{
-		// ssid == target_sid
-		if (mp4_has_permission(ssid, osid, mask) == 0)
-			ret = 0; // return value
-		else 
-			ret = -EACCES;
 	}
 
 	if (ret == -EACCES) 
