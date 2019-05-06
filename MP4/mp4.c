@@ -250,25 +250,15 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
  */
 static int mp4_has_permission(int ssid, int osid, int mask)
 {
-// #define NOACCESS (-1)
-	// mask not enabled
-	if (!mask) return 0;
-	mask = (mask & 31); // efficient bit mask
-
 	// mask enabled, and subject is target 
 	if (osid == MP4_NO_ACCESS) 
 	{
-		// target no access, other is accessible
-		if ((mask | MAY_ACCESS) == MAY_ACCESS)
+		if (ssid == MP4_TARGET_SID) 
 		{
-			if (ssid == MP4_TARGET_SID) 
-			{
-				pr_err("TARGET hit the no access %d %d %d\n", ssid, osid, mask);
-				return -EACCES;
-			}
-			else return 0; // user other than the target can access this
-		} 
-		else return -EACCES;
+			// pr_err("TARGET hit the no access %d %d %d\n", ssid, osid, mask);
+			return -EACCES;
+		}
+		else return 0; // user other than the target can access this
 	}else if (osid == MP4_READ_WRITE) 
 	{
 		// read, write, append by target
@@ -298,7 +288,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	}else if (osid == MP4_RW_DIR)
 	{
 		// may be modified by target program
-		if ((mask | MAY_WRITE | MAY_APPEND) == MAY_WRITE | MAY_APPEND)
+		if ((mask | MAY_WRITE | MAY_APPEND | MAY_READ) == MAY_WRITE | MAY_APPEND | MAY_READ)
 		{
 			if (osid == MP4_TARGET_SID) return 0;
 			else return -EACCES;
@@ -321,23 +311,28 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 static int mp4_inode_permission(struct inode *inode, int mask)
 {
 	/* hook for inode check */ 
-	
-	char * path_buff  = kzalloc(256, GFP_KERNEL);
-	if (!path_buff) 
-		return -ENOMEM;
-	int length = 256;
+	if (!inode) return -EACCES;
+
 	struct dentry * path_de = d_find_alias(inode);
 	if (!path_de) return -EACCES;
 
+	mask &= (MAY_EXEC | MAY_WRITE | MAY_READ | MAY_APPEND); // current efficient bit
+	if (!mask) return 0;
+
+	int length = 256;
+	char * path_buff  = kzalloc(length, GFP_KERNEL); // TODO, gfp bit
+	if (!path_buff) 
+		return -ENOMEM;
+
 	char * path_ret = dentry_path_raw(path_de, path_buff, length);
+
 	if (!path_ret) 
 	{
-		// path_ret is null is the path is found without error
 		if (path_de) dput(path_de);
 		kfree(path_buff);
 		return -EACCES;
 	}
-	// path_buff is filled with path
+
 	if (mp4_should_skip_path(path_ret))
 	{
 		if (path_de) dput(path_de);
@@ -349,27 +344,32 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	struct mp4_security * sec = cred->security;
 	int ssid = sec->mp4_flags;
 	
-	// if non target want to access directory
+	int ret = 0;
+	int osid = get_inode_sid(inode); // TODO 
+	
 	if (ssid != MP4_TARGET_SID)
 	{
 		if (S_ISDIR(inode->i_mode))
-		{	
-			if (path_de) dput(path_de);
-			kfree(path_buff);
-			return 0;  // BUG for clause
-		}
+			ret = 0;  // BUG for clause
+		else 
+			ret = -EACCES;
 	}
-	int osid = get_inode_sid(inode); // TODO 
-	int ret = mp4_has_permission(ssid, osid, mask);
-	// int ret_dir_rec = dir_look(de, ssid, mask);
+	else
+	{
+		// ssid == target_sid
+		if (mp4_has_permission(ssid, osid, mask) == 0)
+			ret = 0; // return value
+		else 
+			ret = -EACCES;
+	}
+
 	if (ret == -EACCES) 
-		// log the failure attempt
-		pr_err("The access is denied. path:%s ssid %d, osid %d, mask %d\n", path_ret, ssid, osid ,mask);
-	// else
-		// if (printk_ratelimit()) pr_err("The access is granted,path: %s ssid %d, osid %d, mask %d", ssid, osid, mask);
-	// final dput
-	if (path_de) dput(path_de);
+		pr_err("permission is denied for %s: ssid %d, osid %d, mask %d\n", path_ret, ssid, osid ,mask);
+
+	if (path_de) 
+		dput(path_de);
 	kfree(path_buff);
+	
 	return ret;
 }
 
