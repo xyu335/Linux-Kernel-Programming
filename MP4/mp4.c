@@ -36,22 +36,22 @@ void do_something(void) {pr_info("nothing.");}
 static int get_inode_sid(struct inode *inode)
 {
 	// determine if the xattr support is enabled
-	if (!inode->i_op->getxattr) 
-		return -ENOENT;
+	if (!inode || !inode->i_op || !inode->i_op->getxattr) 
+		return MP4_NO_ACCESS;
 
 	char * ctx = NULL;
 	// struct super_block * i_sb = inode->i_sb;
 	// de = i_sb->s_root;
 	struct dentry * de = d_find_alias(inode);
 	if (!de) {
-		return -ENOENT;
+		return MP4_NO_ACCESS;
 	}
 	size_t len = 256;
 	ctx = kzalloc(len, GFP_KERNEL); // TODO, self define gfp_t 
 	if (!ctx) 
 	{
 		dput(de);
-		return -ENOMEM;
+		return MP4_NO_ACCESS;
 	}
 	ssize_t ret = inode->i_op->getxattr(de, XATTR_NAME_MP4, ctx, len);
 	//TODO  ret is -1 
@@ -81,13 +81,14 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 
 	if (!bprm)
 		return -ENOENT;
+	if (!bprm->file)
+		return -ENOENT;	
 	struct inode * node = file_inode(bprm->file); // file_inode is inline function, return inode pointer other than error code
 	if (!node) 
 		return -ENOENT;
-	struct cred * cred = current_cred();
+	struct cred * cred = bprm->cred;
 	if (!cred) 
 		return -ENOENT; // the credential of the current process (binary program) has no credential
-	
 	struct mp4_security * ptr = cred->security;	
 	if (!cred->security) 
 	{
@@ -95,6 +96,8 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 		if (!ptr)
 			return -ENOMEM;
 	}
+
+	if (bprm->cred_prepared) return 0;
 	
 	int sid = get_inode_sid(node);
 	if (sid == MP4_TARGET_SID) ptr->mp4_flags = sid;
@@ -147,6 +150,7 @@ static void mp4_cred_free(struct cred *cred)
 	return;
 }
 
+/**
 /**
  * mp4_cred_prepare - Prepare new credentials for modification
  *
@@ -297,7 +301,6 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	}else if (osid == MP4_READ_DIR)
 	{
 		// read, exec, access by ANYONE
-		if ((mask | MAY_EXEC | MAY_READ | MAY_ACCESS) == MAY_EXEC | MAY_READ | MAY_ACCESS) return 0;
 		else return -EACCES;
 	}else if (osid == MP4_RW_DIR)
 	{
