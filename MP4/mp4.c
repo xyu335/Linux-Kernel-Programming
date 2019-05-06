@@ -253,7 +253,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 // #define NOACCESS (-1)
 	// mask not enabled
 	if (!mask) return 0;
-	mask = (mask & 15); // efficient bit mask
+	mask = (mask & 31); // efficient bit mask
 
 	// mask enabled, and subject is target 
 	if (osid == MP4_NO_ACCESS) 
