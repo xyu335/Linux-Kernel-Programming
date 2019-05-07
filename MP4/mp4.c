@@ -90,11 +90,12 @@ static int mp4_bprm_set_creds(struct linux_binprm *bprm)
 	if (!cred) 
 		return -ENOENT; // the credential of the current process (binary program) has no credential
 	struct mp4_security * ptr = cred->security;	
-	if (!cred->security) 
+	
+	if (!ptr) 
 	{
 		pr_err("SHOULD NOT HAPPEN: cred->sec allocation start in bprm hook");
 		if (!ptr)
-			return -ENOMEM;
+			return -ENOENT;
 	}
 
 	if (bprm->cred_prepared) return 0;
@@ -137,15 +138,16 @@ static int mp4_cred_alloc_blank(struct cred *cred, gfp_t gfp)
 static void mp4_cred_free(struct cred *cred)
 {
 	if (!cred) 
-		return -ENOENT;
+		return;
 	
 	struct mp4_security * ptr = cred->security;
-	// BUG_ON(cred->security && cred->security < PAGE_SIZE) 
+	
 	if (!ptr) 
-		return 0; // TODO if no security, then just return success 
+		return; // TODO if no security, then just return success 
 
-	// cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
-	cred->security = NULL;
+	BUG_ON(cred->security && (unsigned long) cred->security < PAGE_SIZE);
+	cred->security = (void *) 0x7UL; // TODO ? what is this memory address, low address in userspace
+	// cred->security = NULL;
 	kfree(ptr);
 	return;
 }
@@ -234,12 +236,14 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 		{
 			if (S_ISDIR(inode->i_mode))
 			{	
-				*value = "dir-write";
+				// *value = "dir-write";
+				*value = kstrdup("dir-write", GFP_KERNEL);
 				*len = 10;
 			}
 			else 
 			{	
-				*value = "read-write";
+				// *value = "read-write";
+				*value = kstrdup("read-write", GFP_KERNEL);
 				*len = 11;
 			}// TODO pitfall, where is the string stored
 		}
@@ -327,7 +331,7 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 	}
 	else
 	{
-		pr_err("THIS SHOULD NOT HAPPEN, OSID EXCEPTION, THE OSID OF THE OBJECT COULD BE LIKE TARGET %d %d %d", osid, ssid, mask); 
+		pr_err("THIS SHOULD ONLY HAPPEN WHEN TARGET IS BEING ACCESSED, OSID == TARGET, THE OSID OF THE OBJECT COULD BE LIKE TARGET %d %d %d", osid, ssid, mask); 
 		return -EACCES; // TODO pitfall for nshadow
 	}
 }
@@ -366,7 +370,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	}
 
 	int length = 256;
-	char * path_buff  = kzalloc(length, GFP_NOFS); // TODO, gfp bit
+	char * path_buff  = kzalloc(length, GFP_KERNEL); // TODO, gfp bit
 	if (!path_buff) 
 	{	
 		if (path_de) 
@@ -399,6 +403,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	if (!sec)
 	{
 		dput(path_de);
+		kfree(path_buff);
 		return -EACCES;
 	}
 	
