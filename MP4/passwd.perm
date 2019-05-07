@@ -3,7 +3,7 @@
 ro="read-only"
 wo="write-only"
 rw="read-write"
-ex="exec"
+ex="read-only"
 
 setfattr -n security.mp4 -v target /usr/bin/passwd
 
@@ -18,9 +18,9 @@ setfattr -n security.mp4 -v dir /var/run
 #setfattr -n security.mp4 -v dir /sys/fs
 setfattr -n security.mp4 -v dir /etc/pam.d
 setfattr -n security.mp4 -v dir /etc/security
-setfattr -n security.mp4 -v dir /etc/gss
-setfattr -n security.mp4 -v dir /etc/gss/mech.d
-setfattr -n security.mp4 -v dir /etc/ldap
+#setfattr -n security.mp4 -v dir /etc/gss
+#setfattr -n security.mp4 -v dir /etc/gss/mech.d
+#setfattr -n security.mp4 -v dir /etc/ldap
 setfattr -n security.mp4 -v dir /home/xiaocong
 setfattr -n security.mp4 -v dir /var/lib
 setfattr -n security.mp4 -v dir /var/lib/sss
@@ -37,40 +37,40 @@ setfattr -n security.mp4 -v dir /var/cache/cracklib
 
 
 # file opened
-setfattr -n security.mp4 -v exec /etc/nsswitch.conf #O_RDONLY O_CLOEXEC
+setfattr -n security.mp4 -v read-only /etc/nsswitch.conf #O_RDONLY O_CLOEXEC
 setfattr -n security.mp4 -v read-only /etc/pam.d/passwd # O_RDONLY
 setfattr -n security.mp4 -v read-only /etc/pam.d/other
 setfattr -n security.mp4 -v read-only /etc/pam.d/common-password # 0_RDONLY
 setfattr -n security.mp4 -v read-only /etc/pam.d/common-auth # 0_RDONLY
 setfattr -n security.mp4 -v read-only /etc/pam.d/common-account # 0_RDONLY
 setfattr -n security.mp4 -v read-only /etc/pam.d/common-session # 0_RDONLY
-setfattr -n security.mp4 -v exec /etc/localtime # RD_ONLY O_CLOEXEC
+setfattr -n security.mp4 -v read-only /etc/localtime # RD_ONLY O_CLOEXEC
 # after password enter
 setfattr -n security.mp4 -v read-only /etc/login.defs 
-setfattr -n security.mp4 -v exec /etc/shadow
+setfattr -n security.mp4 -v read-only /etc/shadow
 setfattr -n security.mp4 -v read-only /etc/security/pwquality.conf # check the password quality, involving urandom
 setfattr -n security.mp4 -v read-only /etc/krb5.conf
 setfattr -n security.mp4 -v read-only /etc/ldap.conf
-setfattr -n security.mp4 -v exec /etc/resolv.conf
-setfattr -n security.mp4 -v exec /etc/host.conf
-setfattr -n security.mp4 -v exec /etc/hosts
-setfattr -n security.mp4 -v exec /etc/ldap/ldap.conf
-#setfattr -n security.mp4 -v exec /sbin/unix_chkpwd
-setfattr -n security.mp4 -v exec /var/lib/sss/mc/passwd
+setfattr -n security.mp4 -v read-only /etc/resolv.conf
+#setfattr -n security.mp4 -v read-only /etc/host.conf
+#setfattr -n security.mp4 -v read-only /etc/hosts
+#setfattr -n security.mp4 -v read-only /etc/ldap/ldap.conf
+#setfattr -n security.mp4 -v read-only /sbin/unix_chkpwd
+setfattr -n security.mp4 -v read-only /var/lib/sss/mc/passwd
 setfattr -n security.mp4 -v read-only /var/cache/cracklib/cracklib_dict.pwd
 setfattr -n security.mp4 -v read-only /var/cache/cracklib/cracklib_dict.pwi
 setfattr -n security.mp4 -v read-only /var/cache/cracklib/cracklib_dict.hwm
-#setfattr -n security.mp4 -v foo foobar
+setfattr -n security.mp4 -v read-write /etc/.pwd.lock
 #setfattr -n security.mp4 -v foo foobar
 #setfattr -n security.mp4 -v foo foobar
 
 # complex file
 setfattr -n security.mp4 -v read-only /etc/locale.alias
 setfattr -n security.mp4 -v read-only /etc/ld.so.cache
-setfattr -n security.mp4 -v exec /var/run/utmp # m=4
+setfattr -n security.mp4 -v read-only /var/run/utmp # m=4
 
 # important file
-setfattr -n security.mp4 -v exec /etc/passwd # TODO curren
+setfattr -n security.mp4 -v read-only /etc/passwd # TODO curren
 
 #dir
 

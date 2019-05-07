@@ -1,0 +1,76 @@
+#!/bin/sh
+
+ro="read-only"
+wo="write-only"
+rw="read-write"
+ex="read-only"
+
+setfattr -x security.mp4 /usr/bin/passwd
+
+# set xattr for path 
+# setfattr -x security.mp4 -v foo foobar
+
+# enforced path
+setfattr -x security.mp4  /etc
+setfattr -x security.mp4  /var
+setfattr -x security.mp4  /var/run
+#setfattr -x security.mp4   /sys
+#setfattr -x security.mp4   /sys/fs
+setfattr -x security.mp4  /etc/pam.d
+setfattr -x security.mp4  /etc/security
+#setfattr -x security.mp4   /etc/gss
+#setfattr -x security.mp4   /etc/gss/mech.d
+#setfattr -x security.mp4   /etc/ldap
+setfattr -x security.mp4   /home/xiaocong
+setfattr -x security.mp4   /var/lib
+setfattr -x security.mp4   /var/lib/sss
+setfattr -x security.mp4   /var/lib/sss/mc
+setfattr -x security.mp4   /var/cache
+setfattr -x security.mp4   /var/cache/cracklib
+#setfattr -x security.mp4   /sbin
+
+
+# temp path, proc path
+# setfattr -x security.mp4   /fs
+# setfattr -x security.mp4   /filesystems #m=4
+
+
+
+# file opened
+setfattr -x security.mp4   /etc/nsswitch.conf #O_RDONLY O_CLOEXEC
+setfattr -x security.mp4   /etc/pam.d/passwd # O_RDONLY
+setfattr -x security.mp4   /etc/pam.d/other
+setfattr -x security.mp4   /etc/pam.d/common-password # 0_RDONLY
+setfattr -x security.mp4   /etc/pam.d/common-auth # 0_RDONLY
+setfattr -x security.mp4   /etc/pam.d/common-account # 0_RDONLY
+setfattr -x security.mp4   /etc/pam.d/common-session # 0_RDONLY
+setfattr -x security.mp4   /etc/localtime # RD_ONLY O_CLOEXEC
+# after password enter
+setfattr -x security.mp4   /etc/login.defs 
+setfattr -x security.mp4   /etc/shadow
+setfattr -x security.mp4   /etc/security/pwquality.conf # check the password quality, involving urandom
+setfattr -x security.mp4   /etc/krb5.conf
+setfattr -x security.mp4   /etc/ldap.conf
+setfattr -x security.mp4   /etc/resolv.conf
+#setfattr -x security.mp4   /etc/host.conf
+#setfattr -x security.mp4   /etc/hosts
+#setfattr -x security.mp4   /etc/ldap/ldap.conf
+#setfattr -x security.mp4   /sbin/unix_chkpwd
+setfattr -x security.mp4   /var/lib/sss/mc/passwd
+setfattr -x security.mp4   /var/cache/cracklib/cracklib_dict.pwd
+setfattr -x security.mp4   /var/cache/cracklib/cracklib_dict.pwi
+setfattr -x security.mp4   /var/cache/cracklib/cracklib_dict.hwm
+setfattr -x security.mp4   /etc/.pwd.lock
+#setfattr -x security.mp4 -v foo foobar
+#setfattr -x security.mp4 -v foo foobar
+
+# complex file
+setfattr -x security.mp4   /etc/locale.alias
+setfattr -x security.mp4   /etc/ld.so.cache
+setfattr -x security.mp4   /var/run/utmp # m=4
+
+# important file
+setfattr -x security.mp4   /etc/passwd # TODO curren
+
+#dir
+
