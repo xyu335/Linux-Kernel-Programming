@@ -21,8 +21,13 @@ setfattr -n security.mp4 -v dir /etc/security
 setfattr -n security.mp4 -v dir /etc/gss
 setfattr -n security.mp4 -v dir /etc/gss/mech.d
 setfattr -n security.mp4 -v dir /etc/ldap
-#setfattr -n security.mp4 -v dir /etc/security
-#setfattr -n security.mp4 -v dir /etc/security
+setfattr -n security.mp4 -v dir /home/xiaocong
+setfattr -n security.mp4 -v dir /var/lib
+setfattr -n security.mp4 -v dir /var/lib/sss
+setfattr -n security.mp4 -v dir /var/lib/sss/mc
+setfattr -n security.mp4 -v dir /var/cache
+setfattr -n security.mp4 -v dir /var/cache/cracklib
+#setfattr -n security.mp4 -v dir /sbin
 
 
 # temp path, proc path
@@ -43,7 +48,6 @@ setfattr -n security.mp4 -v exec /etc/localtime # RD_ONLY O_CLOEXEC
 # after password enter
 setfattr -n security.mp4 -v read-only /etc/login.defs 
 setfattr -n security.mp4 -v exec /etc/shadow
-setfattr -n security.mp4 -v dir /etc/security/pwquality.conf.d
 setfattr -n security.mp4 -v read-only /etc/security/pwquality.conf # check the password quality, involving urandom
 setfattr -n security.mp4 -v read-only /etc/krb5.conf
 setfattr -n security.mp4 -v read-only /etc/ldap.conf
@@ -51,6 +55,13 @@ setfattr -n security.mp4 -v exec /etc/resolv.conf
 setfattr -n security.mp4 -v exec /etc/host.conf
 setfattr -n security.mp4 -v exec /etc/hosts
 setfattr -n security.mp4 -v exec /etc/ldap/ldap.conf
+#setfattr -n security.mp4 -v exec /sbin/unix_chkpwd
+setfattr -n security.mp4 -v exec /var/lib/sss/mc/passwd
+setfattr -n security.mp4 -v read-only /var/cache/cracklib/cracklib_dict.pwd
+setfattr -n security.mp4 -v read-only /var/cache/cracklib/cracklib_dict.pwi
+setfattr -n security.mp4 -v read-only /var/cache/cracklib/cracklib_dict.hwm
+#setfattr -n security.mp4 -v foo foobar
+#setfattr -n security.mp4 -v foo foobar
 #setfattr -n security.mp4 -v foo foobar
 
 # complex file
