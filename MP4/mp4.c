@@ -251,7 +251,7 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 	// if mp4 is default one, then the inode should be default/ null 
 	//else 
 	//	return -EOPNOTSUPP;
-	return 0;
+	return -EOPNOTSUPP;
 }
 
 /**
@@ -352,11 +352,18 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	if (!path_de) return -EACCES;
 
 	struct cred * cred = current_cred();	
-	if (!cred) return -EACCES;
-
+	if (!cred) 
+	{
+		dput(path_de);	
+		return -EACCES;
+	}
 	
 	mask &= (MAY_EXEC | MAY_WRITE | MAY_READ | MAY_APPEND | MAY_ACCESS); // current efficient bit
-	if (!mask) return 0;
+	if (!mask) 
+	{
+		dput(path_de);
+		return 0;
+	}
 
 	int length = 256;
 	char * path_buff  = kzalloc(length, GFP_NOFS); // TODO, gfp bit
@@ -389,7 +396,12 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	} 
 	
 	struct mp4_security * sec = cred->security;
-	if (!sec) return -EACCES;
+	if (!sec)
+	{
+		dput(path_de);
+		return -EACCES;
+	}
+	
 	int ssid = sec->mp4_flags;
 	
 	int ret = 0;
