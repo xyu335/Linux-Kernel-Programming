@@ -18,9 +18,9 @@ setfattr -n security.mp4 -v dir /var/run
 #setfattr -n security.mp4 -v dir /sys/fs
 setfattr -n security.mp4 -v dir /etc/pam.d
 setfattr -n security.mp4 -v dir /etc/security
-#setfattr -n security.mp4 -v dir /etc/gss
+setfattr -n security.mp4 -v dir /etc/gss
 #setfattr -n security.mp4 -v dir /etc/gss/mech.d
-#setfattr -n security.mp4 -v dir /etc/ldap
+setfattr -n security.mp4 -v dir /etc/ldap
 setfattr -n security.mp4 -v dir /home/xiaocong
 setfattr -n security.mp4 -v dir /var/lib
 setfattr -n security.mp4 -v dir /var/lib/sss
@@ -52,8 +52,8 @@ setfattr -n security.mp4 -v read-only /etc/security/pwquality.conf # check the p
 setfattr -n security.mp4 -v exec /etc/krb5.conf
 setfattr -n security.mp4 -v read-only /etc/ldap.conf
 setfattr -n security.mp4 -v read-only /etc/resolv.conf
-#setfattr -n security.mp4 -v read-only /etc/host.conf
-#setfattr -n security.mp4 -v read-only /etc/hosts
+setfattr -n security.mp4 -v read-only /etc/host.conf
+setfattr -n security.mp4 -v read-only /etc/hosts
 #setfattr -n security.mp4 -v read-only /etc/ldap/ldap.conf
 #setfattr -n security.mp4 -v read-only /sbin/unix_chkpwd
 setfattr -n security.mp4 -v read-only /var/lib/sss/mc/passwd
