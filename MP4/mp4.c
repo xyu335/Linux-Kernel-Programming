@@ -249,8 +249,8 @@ static int mp4_inode_init_security(struct inode *inode, struct inode *dir,
 			return -ENOENT; // TODO this should not happen for value and len eithre to be null ptr*/
 	}
 	// if mp4 is default one, then the inode should be default/ null 
-	else 
-		return -EOPNOTSUPP;
+	//else 
+	//	return -EOPNOTSUPP;
 	return 0;
 }
 

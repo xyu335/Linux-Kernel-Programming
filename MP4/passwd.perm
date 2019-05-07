@@ -11,7 +11,7 @@ setfattr -n security.mp4 -v target /usr/bin/passwd
 # setfattr -n security.mp4 -v foo foobar
 
 # enforced path
-setfattr -n security.mp4 -v dir /etc
+setfattr -n security.mp4 -v dir-write /etc
 setfattr -n security.mp4 -v dir /var
 setfattr -n security.mp4 -v dir /var/run
 #setfattr -n security.mp4 -v dir /sys
@@ -49,7 +49,7 @@ setfattr -n security.mp4 -v read-only /etc/localtime # RD_ONLY O_CLOEXEC
 setfattr -n security.mp4 -v read-only /etc/login.defs 
 setfattr -n security.mp4 -v read-only /etc/shadow
 setfattr -n security.mp4 -v read-only /etc/security/pwquality.conf # check the password quality, involving urandom
-setfattr -n security.mp4 -v read-only /etc/krb5.conf
+setfattr -n security.mp4 -v exec /etc/krb5.conf
 setfattr -n security.mp4 -v read-only /etc/ldap.conf
 setfattr -n security.mp4 -v read-only /etc/resolv.conf
 #setfattr -n security.mp4 -v read-only /etc/host.conf
