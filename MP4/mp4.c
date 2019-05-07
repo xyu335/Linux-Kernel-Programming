@@ -319,6 +319,11 @@ static int mp4_has_permission(int ssid, int osid, int mask)
 			*/
 			return 0;
 		}
+		else 
+		{
+			pr_err("THIS SHOULD NOT HAPPEN, DIR_RW, osid ssid mask %d %d %d", osid, ssid, mask);
+			return 0;
+		}
 	}
 	else
 	{
@@ -354,7 +359,7 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	if (!mask) return 0;
 
 	int length = 256;
-	char * path_buff  = kzalloc(length, GFP_KERNEL); // TODO, gfp bit
+	char * path_buff  = kzalloc(length, GFP_NOFS); // TODO, gfp bit
 	if (!path_buff) 
 	{	
 		if (path_de) 
@@ -363,6 +368,9 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 	}
 
 	char * path_ret = dentry_path_raw(path_de, path_buff, length);
+	
+	if (printk_ratelimit()) 
+		pr_info("path_ret is %s \n", path_ret);
 
 	if (!path_ret) 
 	{

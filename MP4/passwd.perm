@@ -10,12 +10,30 @@ setfattr -n security.mp4 -v target /usr/bin/passwd
 # set xattr for path 
 # setfattr -n security.mp4 -v foo foobar
 
+# enforced path
 setfattr -n security.mp4 -v dir /etc
-setfattr -n security.mp4 -v dir /fs
-setfattr -n security.mp4 -v dir /filesystems
+setfattr -n security.mp4 -v dir /var
+setfattr -n security.mp4 -v dir /var/run
 
-setfattr -n security.mp4 -v exec /etc/nsswitch.conf
+# temp path
+#setfattr -n security.mp4 -v dir /fs
+setfattr -n security.mp4 -v read-only /filesystems #m=4
+setfattr -n security.mp4 -v read-only /utmp # m=4
+
+# file opened
+setfattr -n security.mp4 -v exec /etc/nsswitch.conf #O_RDONLY O_CLOEXEC
+setfattr -n security.mp4 -v read-only /etc/pam.d/passwd # O_RDONLY
+setfattr -n security.mp4 -v read-only /etc/pam.d/other
+setfattr -n security.mp4 -v exec /etc/localtime # RD_ONLY O_CLOEXEC
+#setfattr -n security.mp4 -v foo foobar
+
+# complex file
 setfattr -n security.mp4 -v read-only /etc/locale.alias
+setfattr -n security.mp4 -v read-only /etc/ld.so.cache
 
+# important file
+setfattr -n security.mp4 -v exec /etc/passwd # TODO curren
 
+#dir
+setfattr -n security.mp4 -v dir etc/pam.d
 
