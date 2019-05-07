@@ -369,8 +369,8 @@ static int mp4_inode_permission(struct inode *inode, int mask)
 
 	char * path_ret = dentry_path_raw(path_de, path_buff, length);
 	
-	if (printk_ratelimit()) 
-		pr_info("path_ret is %s \n", path_ret);
+	// if (printk_ratelimit()) 
+	// 	pr_info("path_ret is %s \n", path_ret);
 
 	if (!path_ret) 
 	{
